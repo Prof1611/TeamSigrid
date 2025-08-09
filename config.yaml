@@ -1,0 +1,60 @@
+# ==========================
+# BiffyBot Configuration - Biffy Clyro Discord Server
+# ==========================
+
+# --------------------------
+# Status Messages
+# --------------------------
+# Status messages to rotate through for the bot's presence.
+
+statuses:
+  - "Mountains 🔺"
+  - "Many of Horror 💔"
+  - "Bubbles 💦"
+  - "Black Chandelier 🕯️"
+  - "Biblical ✝️"
+  - "The Captain ⚓"
+  - "Rearrange 🔀"
+  - "Wolves of Winter 🐺"
+  - "God & Satan ⚖️"
+  - "Opposite ↔️"
+  - "That Golden Rule 🩸"
+  - "Machines 🛠️"
+  - "Victory Over the Sun 🌑"
+  - "Flammable 🔥"
+  - "Folding Stars ✨"
+  - "Stingin' Belle 🦂"
+  - "57 🎚️"
+  - "Joy.Discovery.Invention ⚡"
+  - "A Hunger in Your Haunt 🌫️"
+  - "Instant History ⏱️"
+  - "The Joke's On Us 🎭"
+  - "Saturday Superhouse 🏚️"
+  - "Who's Got a Match? 🔥"
+  - "Glitter and Trauma 💥"
+  - "The Thaw ❄️"
+  - "Questions and Answers ❓"
+
+# --------------------------
+# Channel and Role IDs
+# --------------------------
+# IDs of channels and roles used by the bot for various functions.
+
+liveshows_channel_id: 1380157321547874414              # Forum channel for live shows threads.
+welcome_channel_id: 1380157415097634868        # Channel where welcome messages are posted.
+new_member_channel_id: 1380157745851793408        # Channel where new members are directed.
+dm_forward_channel_id: 1380176986512822324    # Channel for forwarding direct messages.
+instagram_announce_channel_id: 1380157930233397359  # Discord channel ID for announcements.
+instagram_ping_role_id: 1380175070101770321 # The role to ping when there's a new post.
+
+# --------------------------
+# Feature Toggles
+# --------------------------
+# Enable or disable specific features. Set to 'true' to enable the feature.
+welcome_enabled: true     # Set to true to enable welcome messages.
+
+# --------------------------
+# Instagram Settings
+# --------------------------
+instagram_username: biffy_clyro
+instagram_poll_interval: 300   # seconds between checks.
