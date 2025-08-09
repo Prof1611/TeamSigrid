@@ -1,6 +1,6 @@
-# BiffyBot Discord Bot
+# SigridHQ Discord Bot
 
-**BiffyBot** is a customised Discord bot developed for the Official Biffy Clyro Community. It focuses on enhancing member engagement, streamlining server utilities, and providing robust audit logging—all in a modular, easy-to-configure package.
+**SigridHQ** is a customised Discord bot developed for the Official Sigrid Community. It focuses on enhancing member engagement, streamlining server utilities, and providing robust audit logging—all in a modular, easy-to-configure package.
 
 ## 🚀 Features
 
@@ -16,11 +16,11 @@
 - **🎨 Custom Embed Tool**  
   `/sendembed` walks you through picking a colour (including custom hex), then entering title & description via modals, before sending your embed to any channel you choose.
 
-- **📅 Show Scraper**  
-  `/scrape` fetches Biffy Clyro’s official Live page, creates forum threads for new dates, and spins up scheduled events in Discord with all the right details and images.
+- **📅 Show Scraper**
+  `/scrape` fetches Sigrid’s official tour page, creates forum threads for new dates, and spins up scheduled events in Discord with all the right details and images.
 
-- **📸 Instagram Monitor**  
-  Checks Biffy Clyro's public Instagram profile every _n_ seconds and, when a brand-new post appears, pings a specified role and posts an embed (with image & caption) in a chosen channel.
+- **📸 Instagram Monitor**
+  Checks Sigrid's public Instagram profile every _n_ seconds and, when a brand-new post appears, pings a specified role and posts an embed (with image & caption) in a chosen channel.
 
 - **🕒 Uptime**  
   `/uptime` shows how long the bot’s been online.
@@ -38,7 +38,7 @@
 | Command          | Description                                                      |
 | ---------------- | ---------------------------------------------------------------- |
 | `/help [command]`| List all commands—or get detailed usage for one.                |
-| `/uptime`        | Show how long BiffyBot has been running.                        |
+| `/uptime`        | Show how long SigridHQ has been running.                        |
 | `/setsticky`     | Set (or update) a sticky message in this channel.               |
 | `/removesticky`  | Remove the sticky message from this channel.                    |
 | `/sendembed`     | Send a custom embed (choose colour, title & description).       |
@@ -57,7 +57,7 @@ All settings live in `config.yaml` (UTF-8). Here are the keys you’ll want to f
 
 ```yaml
 # ==========================
-# BiffyBot Configuration - Biffy Clyro Discord Server
+# SigridHQ Configuration - Sigrid Discord Server
 # ==========================
 
 # --------------------------
@@ -66,32 +66,30 @@ All settings live in `config.yaml` (UTF-8). Here are the keys you’ll want to f
 # Status messages to rotate through for the bot's presence.
 
 statuses:
-  - "Mountains 🔺"
-  - "Many of Horror 💔"
-  - "Bubbles 💦"
-  - "Black Chandelier 🕯️"
-  - "Biblical ✝️"
-  - "The Captain ⚓"
-  - "Rearrange 🔀"
-  - "Wolves of Winter 🐺"
-  - "God & Satan ⚖️"
-  - "Opposite ↔️"
-  - "That Golden Rule 🩸"
-  - "Machines 🛠️"
-  - "Victory Over the Sun 🌑"
-  - "Flammable 🔥"
-  - "Folding Stars ✨"
-  - "Stingin' Belle 🦂"
-  - "57 🎚️"
-  - "Joy.Discovery.Invention ⚡"
-  - "A Hunger in Your Haunt 🌫️"
-  - "Instant History ⏱️"
-  - "The Joke's On Us 🎭"
-  - "Saturday Superhouse 🏚️"
-  - "Who's Got a Match? 🔥"
-  - "Glitter and Trauma 💥"
-  - "The Thaw ❄️"
-  - "Questions and Answers ❓"
+  - "Strangers 🤝"
+  - "Don't Kill My Vibe ✋"
+  - "Sucker Punch 🥊"
+  - "Plot Twist 📚"
+  - "Mirror 🪞"
+  - "Don't Feel Like Crying 😢"
+  - "High Five 🙌"
+  - "Burning Bridges 🔥"
+  - "It Gets Dark 🌑"
+  - "Bad Life 💔"
+  - "Head on Fire 🔥🧠"
+  - "Sight of You 👀"
+  - "Dynamite 💣"
+  - "Basic ⚪"
+  - "Home to You 🏠"
+  - "Maybe It's a Good Thing ✅"
+  - "Raw 🎤"
+  - "Level Up ⬆️"
+  - "Schedules 🗓️"
+  - "Focus 🎯"
+  - "Dance for Me 💃"
+  - "In Vain 🌀"
+  - "A Driver Saved My Night 🚗"
+  - "Ring 💍"
 
 # --------------------------
 # Channel and Role IDs
@@ -114,7 +112,7 @@ welcome_enabled: true     # Set to true to enable welcome messages.
 # --------------------------
 # Instagram Settings
 # --------------------------
-instagram_username: biffy_clyro
+instagram_username: thisissigrid
 instagram_poll_interval: 300   # seconds between checks.
 
 ```

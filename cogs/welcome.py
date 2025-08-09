@@ -52,13 +52,13 @@ class Welcome(commands.Cog):
             return
 
         embed = discord.Embed(
-            title="Welcome to the Official Biffy Clyro Community!",
+            title="Welcome to the Official Sigrid Community!",
             description=(
-                f"Hey {member.mention}, welcome to the noise. 🖤\n"
-                f"Pull up a chair and lose yourself in the chaos — you're among friends, fans, and fire.\n\n"
-                f"Make sure to check out <#{self.new_member_channel_id}> for all the community essentials. 🎸"
+                f"Hey {member.mention}, welcome to the party! 🌟\n"
+                f"Pull up a seat and join the conversation—you\'re among friends, fans, and good vibes.\n\n"
+                f"Make sure to check out <#{self.new_member_channel_id}> for all the community essentials. 🎧"
             ),
-            color=discord.Color.dark_red(),
+            color=discord.Color.blue(),
         )
         
         embed.set_image(url="attachment://welcome-image.jpg")
