@@ -1,5 +1,5 @@
 # ==========================
-# BiffyBot Configuration - Biffy Clyro Discord Server
+# SigridHQ Configuration - Sigrid Discord Server
 # ==========================
 
 # --------------------------
@@ -8,32 +8,30 @@
 # Status messages to rotate through for the bot's presence.
 
 statuses:
-  - "Mountains 🔺"
-  - "Many of Horror 💔"
-  - "Bubbles 💦"
-  - "Black Chandelier 🕯️"
-  - "Biblical ✝️"
-  - "The Captain ⚓"
-  - "Rearrange 🔀"
-  - "Wolves of Winter 🐺"
-  - "God & Satan ⚖️"
-  - "Opposite ↔️"
-  - "That Golden Rule 🩸"
-  - "Machines 🛠️"
-  - "Victory Over the Sun 🌑"
-  - "Flammable 🔥"
-  - "Folding Stars ✨"
-  - "Stingin' Belle 🦂"
-  - "57 🎚️"
-  - "Joy.Discovery.Invention ⚡"
-  - "A Hunger in Your Haunt 🌫️"
-  - "Instant History ⏱️"
-  - "The Joke's On Us 🎭"
-  - "Saturday Superhouse 🏚️"
-  - "Who's Got a Match? 🔥"
-  - "Glitter and Trauma 💥"
-  - "The Thaw ❄️"
-  - "Questions and Answers ❓"
+  - "Strangers 🤝"
+  - "Don't Kill My Vibe ✋"
+  - "Sucker Punch 🥊"
+  - "Plot Twist 📚"
+  - "Mirror 🪞"
+  - "Don't Feel Like Crying 😢"
+  - "High Five 🙌"
+  - "Burning Bridges 🔥"
+  - "It Gets Dark 🌑"
+  - "Bad Life 💔"
+  - "Head on Fire 🔥🧠"
+  - "Sight of You 👀"
+  - "Dynamite 💣"
+  - "Basic ⚪"
+  - "Home to You 🏠"
+  - "Maybe It's a Good Thing ✅"
+  - "Raw 🎤"
+  - "Level Up ⬆️"
+  - "Schedules 🗓️"
+  - "Focus 🎯"
+  - "Dance for Me 💃"
+  - "In Vain 🌀"
+  - "A Driver Saved My Night 🚗"
+  - "Ring 💍"
 
 # --------------------------
 # Channel and Role IDs
@@ -56,5 +54,5 @@ welcome_enabled: true     # Set to true to enable welcome messages.
 # --------------------------
 # Instagram Settings
 # --------------------------
-instagram_username: biffy_clyro
+instagram_username: thisissigrid
 instagram_poll_interval: 300   # seconds between checks.

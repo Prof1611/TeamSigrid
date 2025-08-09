@@ -38,8 +38,8 @@ class Scrape(commands.Cog):
         # Load the config file with UTF-8 encoding.
         with open("config.yaml", "r", encoding="utf-8") as config_file:
             self.config = yaml.safe_load(config_file)
-        # The URL of Biffy Clyro's Live page (HTML-based).
-        self.LIVE_PAGE_URL = "https://www.biffyclyro.com/live/"
+        # The URL of Sigrid's tour page (HTML-based).
+        self.LIVE_PAGE_URL = "https://www.thisissigrid.com/tour/"
         audit_log("Scrape cog initialised and configuration loaded successfully.")
 
     @commands.Cog.listener()
@@ -93,12 +93,12 @@ class Scrape(commands.Cog):
 
     def run_scraper(self):
         """
-        Scrape Biffy Clyro's Live page by fetching its HTML and extracting
+        Scrape Sigrid's tour page by fetching its HTML and extracting
         each <li class="date-item">. Return a list of tuples:
             [(formatted_date, venue, location), ...]
         """
-        logging.info("Running scraper by parsing HTML from BiffyLive page...")
-        audit_log("Starting scraper: Requesting event data from BiffyLive HTML.")
+        logging.info("Running scraper by parsing HTML from Sigrid's tour page...")
+        audit_log("Starting scraper: Requesting event data from Sigrid tour HTML.")
         new_entries = []
 
         try:
@@ -177,7 +177,7 @@ class Scrape(commands.Cog):
     def _parse_raw_date(self, raw: str) -> str:
         """
         Convert raw date string like "25-Jun-06" into "06 June 2025".
-        Biffy's format is “YY-Mon-DD” where “25” is the year “2025”.
+        The site's format is “YY-Mon-DD” where “25” is the year “2025”.
         """
         try:
             parts = raw.split("-")
@@ -281,7 +281,7 @@ class Scrape(commands.Cog):
                 )
             if not exists:
                 try:
-                    content = f"Biffy Clyro at {venue.title()}, {location.title()}"
+                    content = f"Sigrid at {venue.title()}, {location.title()}"
                     logging.info(f"Creating thread for: {thread_title}")
                     await liveshows_channel.create_thread(
                         name=thread_title,
@@ -428,7 +428,7 @@ class Scrape(commands.Cog):
                 try:
                     await guild.create_scheduled_event(
                         name=event_name,
-                        description=f"Biffy Clyro at {venue.title() if venue else ''}, {location.title() if location else ''}",
+                        description=f"Sigrid at {venue.title() if venue else ''}, {location.title() if location else ''}",
                         start_time=start_time,
                         end_time=end_time,
                         location=f"{venue.title() if venue else ''}, {location.title() if location else ''}",
