@@ -54,11 +54,10 @@ class Welcome(commands.Cog):
         embed = discord.Embed(
             title="Welcome to the Official Sigrid Community!",
             description=(
-                f"Hey {member.mention}, welcome to the party! 🌟\n"
-                f"Pull up a seat and join the conversation—you\'re among friends, fans, and good vibes.\n\n"
-                f"Make sure to check out <#{self.new_member_channel_id}> for all the community essentials. 🎧"
+                f"Hey {member.mention}, welcome to the home of Sigrid! 🌟\n"
+                f"Make sure to check out <#{self.new_member_channel_id}> to find your way around! 🎶"
             ),
-            color=discord.Color.blue(),
+            color = discord.Color(0x0CA115),
         )
         
         embed.set_image(url="attachment://welcome-image.jpg")

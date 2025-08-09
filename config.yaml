@@ -38,12 +38,12 @@ statuses:
 # --------------------------
 # IDs of channels and roles used by the bot for various functions.
 
-liveshows_channel_id: 1380157321547874414              # Forum channel for live shows threads.
-welcome_channel_id: 1380157415097634868        # Channel where welcome messages are posted.
-new_member_channel_id: 1380157745851793408        # Channel where new members are directed.
-dm_forward_channel_id: 1380176986512822324    # Channel for forwarding direct messages.
-instagram_announce_channel_id: 1380157930233397359  # Discord channel ID for announcements.
-instagram_ping_role_id: 1380175070101770321 # The role to ping when there's a new post.
+liveshows_channel_id: 1159498591451222076             # Forum channel for live shows threads.
+welcome_channel_id: 948283107474280449        # Channel where welcome messages are posted.
+new_member_channel_id: 1052940830169628752        # Channel where new members are directed.
+dm_forward_channel_id: 1403859090987286630    # Channel for forwarding direct messages.
+instagram_announce_channel_id: 946013231208611880  # Discord channel ID for announcements.
+instagram_ping_role_id: 1052632504668012584 # The role to ping when there's a new post.
 
 # --------------------------
 # Feature Toggles

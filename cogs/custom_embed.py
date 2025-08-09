@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
 
+
 def audit_log(message: str):
     """Append a timestamped message to the audit log file."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -14,38 +15,106 @@ def audit_log(message: str):
     except Exception as e:
         logging.error(f"Failed to write to audit.log: {e}")
 
+
 def make_embed(title: str, description: str, color: discord.Color) -> discord.Embed:
     return discord.Embed(title=title, description=description, color=color)
+
 
 # — Dropdown (Select) to choose embed colour first (24 options + custom) —
 class ColourSelect(discord.ui.Select):
     def __init__(self, parent_view: "ColourPickView"):
         options = [
-            discord.SelectOption(label="Default", value="default", description="Black (#000000)"),
-            discord.SelectOption(label="Custom Hex", value="custom_hex", description="Enter your own hex code…"),
-            discord.SelectOption(label="Random", value="random", description="Pick a random colour"),
-            discord.SelectOption(label="Teal", value="teal", description="Aloha (#1ABC9C)"),
-            discord.SelectOption(label="Dark Teal", value="dark_teal", description="Blue Green (#11806A)"),
-            discord.SelectOption(label="Green", value="green", description="UFO Green (#2ECC71)"),
-            discord.SelectOption(label="Blurple", value="blurple", description="Blue Genie (#5865F2)"),
-            discord.SelectOption(label="OG Blurple", value="og_blurple", description="Zeus' Temple (#7289DA)"),
-            discord.SelectOption(label="Blue", value="blue", description="Dayflower (#3498DB)"),
-            discord.SelectOption(label="Dark Blue", value="dark_blue", description="Deep Water (#206694)"),
-            discord.SelectOption(label="Purple", value="purple", description="Deep Lilac (#9B59B6)"),
-            discord.SelectOption(label="Dark Purple", value="dark_purple", description="Maximum Purple (#71368A)"),
-            discord.SelectOption(label="Magenta", value="magenta", description="Mellow Melon (#E91E63)"),
-            discord.SelectOption(label="Dark Magenta", value="dark_magenta", description="Plum Perfect (#AD1457)"),
-            discord.SelectOption(label="Gold", value="gold", description="Tanned Leather (#F1C40F)"),
-            discord.SelectOption(label="Dark Gold", value="dark_gold", description="Tree Sap (#C27C0E)"),
-            discord.SelectOption(label="Orange", value="orange", description="Dark Cheddar (#E67E22)"),
-            discord.SelectOption(label="Dark Orange", value="dark_orange", description="Pepperoni (#A84300)"),
-            discord.SelectOption(label="Red", value="red", description="Carmine Pink (#E74C3C)"),
-            discord.SelectOption(label="Dark Red", value="dark_red", description="Red Birch (#992D22)"),
-            discord.SelectOption(label="Greyple", value="greyple", description="Irogon Blue (#99AAB5)"),
-            discord.SelectOption(label="Light Grey", value="light_grey", description="Harrison Grey (#979C9F)"),
-            discord.SelectOption(label="Darker Grey", value="darker_grey", description="Morro Bay (#546E7A)"),
-            discord.SelectOption(label="Dark Theme", value="dark_theme", description="Antarctic Deep (transparent)"),
-            discord.SelectOption(label="Yellow", value="yellow", description="Corn (#FEE75C)"),
+            discord.SelectOption(
+                label="Default", value="default", description="Black (#000000)"
+            ),
+            discord.SelectOption(
+                label="Custom Hex",
+                value="custom_hex",
+                description="Enter your own hex code…",
+            ),
+            discord.SelectOption(
+                label="Random", value="random", description="Pick a random colour"
+            ),
+            discord.SelectOption(
+                label="Teal", value="teal", description="Aloha (#1ABC9C)"
+            ),
+            discord.SelectOption(
+                label="Dark Teal", value="dark_teal", description="Blue Green (#11806A)"
+            ),
+            discord.SelectOption(
+                label="Green", value="green", description="UFO Green (#2ECC71)"
+            ),
+            discord.SelectOption(
+                label="Blurple", value="blurple", description="Blue Genie (#5865F2)"
+            ),
+            discord.SelectOption(
+                label="OG Blurple",
+                value="og_blurple",
+                description="Zeus' Temple (#7289DA)",
+            ),
+            discord.SelectOption(
+                label="Blue", value="blue", description="Dayflower (#3498DB)"
+            ),
+            discord.SelectOption(
+                label="Dark Blue", value="dark_blue", description="Deep Water (#206694)"
+            ),
+            discord.SelectOption(
+                label="Purple", value="purple", description="Deep Lilac (#9B59B6)"
+            ),
+            discord.SelectOption(
+                label="Dark Purple",
+                value="dark_purple",
+                description="Maximum Purple (#71368A)",
+            ),
+            discord.SelectOption(
+                label="Magenta", value="magenta", description="Mellow Melon (#E91E63)"
+            ),
+            discord.SelectOption(
+                label="Dark Magenta",
+                value="dark_magenta",
+                description="Plum Perfect (#AD1457)",
+            ),
+            discord.SelectOption(
+                label="Gold", value="gold", description="Tanned Leather (#F1C40F)"
+            ),
+            discord.SelectOption(
+                label="Dark Gold", value="dark_gold", description="Tree Sap (#C27C0E)"
+            ),
+            discord.SelectOption(
+                label="Orange", value="orange", description="Dark Cheddar (#E67E22)"
+            ),
+            discord.SelectOption(
+                label="Dark Orange",
+                value="dark_orange",
+                description="Pepperoni (#A84300)",
+            ),
+            discord.SelectOption(
+                label="Red", value="red", description="Carmine Pink (#E74C3C)"
+            ),
+            discord.SelectOption(
+                label="Dark Red", value="dark_red", description="Red Birch (#992D22)"
+            ),
+            discord.SelectOption(
+                label="Greyple", value="greyple", description="Irogon Blue (#99AAB5)"
+            ),
+            discord.SelectOption(
+                label="Light Grey",
+                value="light_grey",
+                description="Harrison Grey (#979C9F)",
+            ),
+            discord.SelectOption(
+                label="Darker Grey",
+                value="darker_grey",
+                description="Morro Bay (#546E7A)",
+            ),
+            discord.SelectOption(
+                label="Dark Theme",
+                value="dark_theme",
+                description="Antarctic Deep (transparent)",
+            ),
+            discord.SelectOption(
+                label="Yellow", value="yellow", description="Corn (#FEE75C)"
+            ),
         ]
         super().__init__(
             placeholder="Choose an embed colour…",
@@ -59,14 +128,20 @@ class ColourSelect(discord.ui.Select):
         choice = self.values[0]
         try:
             if choice == "custom_hex":
-                await interaction.response.send_modal(HexContentModal(self.parent_view.channel))
+                await interaction.response.send_modal(
+                    HexContentModal(self.parent_view.channel)
+                )
             else:
                 colour_method = getattr(discord.Color, choice)
                 self.parent_view.chosen_colour = colour_method()
                 await interaction.response.send_modal(
-                    ContentModal(self.parent_view.channel, self.parent_view.chosen_colour)
+                    ContentModal(
+                        self.parent_view.channel, self.parent_view.chosen_colour
+                    )
                 )
-            audit_log(f"{interaction.user} chose '{choice}' for #{self.parent_view.channel.name}.")
+            audit_log(
+                f"{interaction.user} chose '{choice}' for #{self.parent_view.channel.name}."
+            )
         except Exception as e:
             logging.warning(f"ColourSelect.callback failed on choice '{choice}': {e}")
             audit_log(f"Error processing colour choice '{choice}': {e}")
@@ -75,6 +150,7 @@ class ColourSelect(discord.ui.Select):
             await interaction.response.send_modal(
                 ContentModal(self.parent_view.channel, discord.Color.default())
             )
+
 
 # — View that holds the ColourSelect dropdown —
 class ColourPickView(discord.ui.View):
@@ -90,13 +166,20 @@ class ColourPickView(discord.ui.View):
         for child in self.children:
             child.disabled = True
 
+
 # — Modal for built-in colours: collect title + description —
 class ContentModal(discord.ui.Modal, title="Write your embed"):
     embed_title = discord.ui.TextInput(
-        label="Embed Title", style=discord.TextStyle.short, required=True, placeholder="Title…"
+        label="Embed Title",
+        style=discord.TextStyle.short,
+        required=True,
+        placeholder="Title…",
     )
     embed_message = discord.ui.TextInput(
-        label="Description", style=discord.TextStyle.long, required=True, placeholder="Your message…"
+        label="Description",
+        style=discord.TextStyle.long,
+        required=True,
+        placeholder="Your message…",
     )
 
     def __init__(self, channel: discord.TextChannel, colour: discord.Color):
@@ -108,35 +191,55 @@ class ContentModal(discord.ui.Modal, title="Write your embed"):
         embed = discord.Embed(
             title=self.embed_title.value,
             description=self.embed_message.value,
-            color=self.colour
+            color=self.colour,
         )
         try:
             await self.channel.send(embed=embed)
-            audit_log(f"{interaction.user} sent embed '{self.embed_title.value}' in #{self.channel.name} with colour {self.colour}.")
-            success = make_embed("Embed sent!", "Custom embed sent successfully.", discord.Color.green())
+            audit_log(
+                f"{interaction.user} sent embed '{self.embed_title.value}' in #{self.channel.name} with colour {self.colour}."
+            )
+            success = make_embed(
+                "Embed sent!", "Custom embed sent successfully.", discord.Color.green()
+            )
             await interaction.response.send_message(embed=success, ephemeral=True)
         except discord.Forbidden:
             logging.error(f"No permission to send embed in #{self.channel.name}")
             audit_log(f"{interaction.user} lacked permissions in #{self.channel.name}.")
-            error = make_embed("Error", f"I don't have permission to send embeds in {self.channel.mention}.", discord.Color.red())
+            error = make_embed(
+                "Error",
+                f"I don't have permission to send embeds in {self.channel.mention}.",
+                discord.Color.red(),
+            )
             await interaction.response.send_message(embed=error, ephemeral=True)
         except Exception as e:
             logging.error(f"ContentModal.on_submit error: {e}")
             audit_log(f"Error sending embed: {e}")
-            error = make_embed("Error", f"Unexpected error:\n`{e}`", discord.Color.red())
+            error = make_embed(
+                "Error", f"Unexpected error:\n`{e}`", discord.Color.red()
+            )
             await interaction.response.send_message(embed=error, ephemeral=True)
+
 
 # — Modal for Custom HEX: collect hex + title + description —
 class HexContentModal(discord.ui.Modal, title="Custom HEX Embed"):
     hex_code = discord.ui.TextInput(
-        label="HEX Code", style=discord.TextStyle.short, required=True,
-        placeholder="#RRGGBB or RRGGBB", max_length=7,
+        label="HEX Code",
+        style=discord.TextStyle.short,
+        required=True,
+        placeholder="#RRGGBB or RRGGBB",
+        max_length=7,
     )
     embed_title = discord.ui.TextInput(
-        label="Embed Title", style=discord.TextStyle.short, required=True, placeholder="Title…"
+        label="Embed Title",
+        style=discord.TextStyle.short,
+        required=True,
+        placeholder="Title…",
     )
     embed_message = discord.ui.TextInput(
-        label="Description", style=discord.TextStyle.long, required=True, placeholder="Your message…"
+        label="Description",
+        style=discord.TextStyle.long,
+        required=True,
+        placeholder="Your message…",
     )
 
     def __init__(self, channel: discord.TextChannel):
@@ -146,31 +249,48 @@ class HexContentModal(discord.ui.Modal, title="Custom HEX Embed"):
     async def on_submit(self, interaction: discord.Interaction):
         hex_str = self.hex_code.value.strip().lstrip("#")
         if not re.fullmatch(r"[0-9A-Fa-f]{6}", hex_str):
-            audit_log(f"{interaction.user} provided invalid hex '{self.hex_code.value}'.")
-            error = make_embed("Error", "Invalid hex code! Must be exactly 6 hex digits.", discord.Color.red())
+            audit_log(
+                f"{interaction.user} provided invalid hex '{self.hex_code.value}'."
+            )
+            error = make_embed(
+                "Error",
+                "Invalid hex code! Must be exactly 6 hex digits.",
+                discord.Color.red(),
+            )
             return await interaction.response.send_message(embed=error, ephemeral=True)
 
         colour = discord.Color(int(hex_str, 16))
         embed = discord.Embed(
             title=self.embed_title.value,
             description=self.embed_message.value,
-            color=colour
+            color=colour,
         )
         try:
             await self.channel.send(embed=embed)
-            audit_log(f"{interaction.user} sent custom embed '{self.embed_title.value}' in #{self.channel.name}.")
-            success = make_embed("Embed sent!", "Custom embed sent successfully.", discord.Color.green())
+            audit_log(
+                f"{interaction.user} sent custom embed '{self.embed_title.value}' in #{self.channel.name}."
+            )
+            success = make_embed(
+                "Embed sent!", "Custom embed sent successfully.", discord.Color.green()
+            )
             await interaction.response.send_message(embed=success, ephemeral=True)
         except discord.Forbidden:
             logging.error(f"No permission to send custom embed in #{self.channel.name}")
             audit_log(f"{interaction.user} lacked permissions in #{self.channel.name}.")
-            error = make_embed("Error", f"I don't have permission to send embeds in {self.channel.mention}.", discord.Color.red())
+            error = make_embed(
+                "Error",
+                f"I don't have permission to send embeds in {self.channel.mention}.",
+                discord.Color.red(),
+            )
             await interaction.response.send_message(embed=error, ephemeral=True)
         except Exception as e:
             logging.error(f"HexContentModal.on_submit error: {e}")
             audit_log(f"Error sending custom embed: {e}")
-            error = make_embed("Error", f"Unexpected error:\n`{e}`", discord.Color.red())
+            error = make_embed(
+                "Error", f"Unexpected error:\n`{e}`", discord.Color.red()
+            )
             await interaction.response.send_message(embed=error, ephemeral=True)
+
 
 # — Cog to tie it all together —
 class CustomEmbed(commands.Cog):
@@ -185,20 +305,24 @@ class CustomEmbed(commands.Cog):
 
     @app_commands.command(
         name="sendembed",
-        description="Send a custom embed: choose a dropdown colour (or custom hex)."
+        description="Send a custom embed: choose a dropdown colour (or custom hex).",
     )
     @app_commands.describe(channel="Channel to post the embed in")
     async def sendembed(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel
+        self, interaction: discord.Interaction, channel: discord.TextChannel
     ):
         try:
             perms = channel.permissions_for(interaction.guild.me)
             if not (perms.send_messages and perms.embed_links):
-                error = make_embed("Error", f"I need send_messages & embed_links in {channel.mention}.", discord.Color.red())
+                error = make_embed(
+                    "Error",
+                    f"I need send_messages & embed_links in {channel.mention}.",
+                    discord.Color.red(),
+                )
                 await interaction.response.send_message(embed=error, ephemeral=True)
-                audit_log(f"{interaction.user} invoked /sendembed but lacked perms in #{channel.name}.")
+                audit_log(
+                    f"{interaction.user} invoked /sendembed but lacked perms in #{channel.name}."
+                )
                 return
 
             view = ColourPickView(channel)
@@ -210,8 +334,11 @@ class CustomEmbed(commands.Cog):
         except Exception as e:
             logging.error(f"Error in /sendembed: {e}")
             audit_log(f"Unexpected error in /sendembed: {e}")
-            error = make_embed("Error", f"Unexpected error:\n`{e}`", discord.Color.red())
+            error = make_embed(
+                "Error", f"Unexpected error:\n`{e}`", discord.Color.red()
+            )
             await interaction.response.send_message(embed=error, ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(CustomEmbed(bot))
