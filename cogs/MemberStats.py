@@ -149,8 +149,12 @@ class MemberStats(commands.Cog):
                 mention_author=False,
             )
         except discord.HTTPException as e:
+            logging.error(
+                f"Error while creating or updating the channel: {e}",
+                exc_info=True,
+            )
             await ctx.reply(
-                f"Discord error while creating or updating the channel: {e}",
+                "I couldn't set up the channel. Please try again later.",
                 mention_author=False,
             )
         except Exception as e:
@@ -159,7 +163,7 @@ class MemberStats(commands.Cog):
                 f"Unexpected error in setup_member_count for guild '{guild.name}' ({guild.id}): {e}"
             )
             await ctx.reply(
-                "An unexpected error occurred. Check logs for details.",
+                "Something went wrong while setting up the member count. Please try again later.",
                 mention_author=False,
             )
 
@@ -184,7 +188,7 @@ class MemberStats(commands.Cog):
         else:
             logging.error(f"setup_member_count_error: {error}", exc_info=True)
             await ctx.reply(
-                "There was an error running that command. Check logs for details.",
+                "I couldn't run that command right now. Please try again later.",
                 mention_author=False,
             )
 
@@ -229,8 +233,12 @@ class MemberStats(commands.Cog):
                 mention_author=False,
             )
         except discord.HTTPException as e:
+            logging.error(
+                f"Error while updating the channel name: {e}", exc_info=True
+            )
             await ctx.reply(
-                f"Discord error while updating the channel: {e}", mention_author=False
+                "I ran into a problem while updating the channel. Please try again later.",
+                mention_author=False,
             )
         except Exception as e:
             logging.error(
@@ -240,7 +248,7 @@ class MemberStats(commands.Cog):
                 f"Unexpected error in refresh_member_count for guild '{guild.name}' ({guild.id}): {e}"
             )
             await ctx.reply(
-                "An unexpected error occurred. Check logs for details.",
+                "Something went wrong while refreshing the member count. Please try again later.",
                 mention_author=False,
             )
 
@@ -280,8 +288,12 @@ class MemberStats(commands.Cog):
                 )
                 return
             except discord.HTTPException as e:
+                logging.error(
+                    f"Error while deleting member count channel: {e}",
+                    exc_info=True,
+                )
                 await ctx.reply(
-                    f"Discord error while deleting the channel: {e}",
+                    "I ran into a problem while deleting that channel. Please try again later.",
                     mention_author=False,
                 )
                 return

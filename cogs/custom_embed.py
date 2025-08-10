@@ -215,7 +215,9 @@ class ContentModal(discord.ui.Modal, title="Write your embed"):
             logging.error(f"ContentModal.on_submit error: {e}")
             audit_log(f"Error sending embed: {e}")
             error = make_embed(
-                "Error", f"Unexpected error:\n`{e}`", discord.Color.red()
+                "Error",
+                "Something went wrong while sending your embed. Please try again later.",
+                discord.Color.red(),
             )
             await interaction.response.send_message(embed=error, ephemeral=True)
 
@@ -287,7 +289,9 @@ class HexContentModal(discord.ui.Modal, title="Custom HEX Embed"):
             logging.error(f"HexContentModal.on_submit error: {e}")
             audit_log(f"Error sending custom embed: {e}")
             error = make_embed(
-                "Error", f"Unexpected error:\n`{e}`", discord.Color.red()
+                "Error",
+                "Something went wrong while sending your embed. Please try again later.",
+                discord.Color.red(),
             )
             await interaction.response.send_message(embed=error, ephemeral=True)
 
@@ -335,7 +339,9 @@ class CustomEmbed(commands.Cog):
             logging.error(f"Error in /sendembed: {e}")
             audit_log(f"Unexpected error in /sendembed: {e}")
             error = make_embed(
-                "Error", f"Unexpected error:\n`{e}`", discord.Color.red()
+                "Error",
+                "Something went wrong while starting the embed maker. Please try again later.",
+                discord.Color.red(),
             )
             await interaction.response.send_message(embed=error, ephemeral=True)
 

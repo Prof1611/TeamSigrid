@@ -87,7 +87,7 @@ class Scrape(commands.Cog):
             )
             error_embed = discord.Embed(
                 title="Error",
-                description=f"An error occurred during scraping:\n`{e}`",
+                description="Something went wrong while checking the website. Please try again later.",
                 color=discord.Color.red(),
             )
             await interaction.followup.send(embed=error_embed)
@@ -378,7 +378,7 @@ class Scrape(commands.Cog):
                     logging.error(f"Failed to create thread '{thread_title}': {e}")
                     error_embed = discord.Embed(
                         title="Error",
-                        description=f"Failed to create thread '{thread_title}': `{e}`",
+                        description=f"I couldn't create the thread '{thread_title}'. Please try again later.",
                         color=discord.Color.red(),
                     )
                     await interaction.followup.send(embed=error_embed)
@@ -546,7 +546,7 @@ class Scrape(commands.Cog):
                     )
                     error_embed = discord.Embed(
                         title="Error",
-                        description=f"Failed to create scheduled event '{event_name}': `{e}`",
+                        description=f"I couldn't create the event '{event_name}'. Please try again later.",
                         color=discord.Color.red(),
                     )
                     await interaction.followup.send(embed=error_embed)

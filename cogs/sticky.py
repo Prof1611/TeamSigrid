@@ -144,7 +144,11 @@ class HexContentModal(discord.ui.Modal, title="Custom HEX Sticky"):
             )
         except Exception as e:
             logging.error(f"HexContentModal failed: {e}")
-            err = make_embed("Error", f"Unexpected error:\n`{e}`", discord.Color.red())
+            err = make_embed(
+                "Error",
+                "Something went wrong while setting the sticky message. Please try again later.",
+                discord.Color.red(),
+            )
             return await interaction.response.send_message(embed=err, ephemeral=True)
 
 
