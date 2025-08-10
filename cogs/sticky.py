@@ -10,17 +10,19 @@ import datetime
 # Define an invisible marker for sticky messages using zero-width characters.
 STICKY_MARKER = "\u200b\u200c\u200d\u2060"
 
+
 def audit_log(message: str):
     """Append a timestamped message to the audit log file."""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open("audit.log", "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] {message}\n")
 
+
 def make_embed(title: str, description: str, color: discord.Color) -> discord.Embed:
     return discord.Embed(title=title, description=description, color=color)
 
 
-# — Colour picker reused from CustomEmbed —
+# Colour picker reused from CustomEmbed, extended to support custom title flow
 class ColourSelect(discord.ui.Select):
     def __init__(self, parent_view: "StickyColourPickView"):
         options = [
@@ -100,10 +102,14 @@ class StickyColourPickView(discord.ui.View):
             child.disabled = True
 
 
-class HexContentModal(discord.ui.Modal, title="Custom HEX Embed"):
+class HexContentModal(discord.ui.Modal, title="Custom HEX Sticky"):
     hex_code = discord.ui.TextInput(
         label="HEX Code", style=discord.TextStyle.short, required=True,
         placeholder="#RRGGBB or RRGGBB", max_length=7,
+    )
+    embed_title = discord.ui.TextInput(
+        label="Embed Title", style=discord.TextStyle.short, required=False,
+        placeholder="Title for the sticky embed…"
     )
     sticky_message = discord.ui.TextInput(
         label="Sticky Message", style=discord.TextStyle.long, required=True,
@@ -115,30 +121,38 @@ class HexContentModal(discord.ui.Modal, title="Custom HEX Embed"):
         self.channel = channel
         self.sticky_cog = sticky_cog
         self.selected_format = selected_format
-        self.chosen_colour = None
 
     async def on_submit(self, interaction: discord.Interaction):
         hex_str = self.hex_code.value.strip().lstrip("#")
         if not re.fullmatch(r"[0-9A-Fa-f]{6}", hex_str):
-            err = make_embed("Error", "Invalid hex—must be exactly 6 hex digits.", discord.Color.red())
+            err = make_embed("Error", "Invalid hex. Must be exactly 6 hex digits.", discord.Color.red())
             return await interaction.response.send_message(embed=err, ephemeral=True)
+
         colour = discord.Color(int(hex_str, 16))
-        # forward to StickyModal with prefilled message
-        modal = StickyModal(
-            interaction.client,
-            self.sticky_cog,
-            self.selected_format,
-            colour,
-            prefilled_message=self.sticky_message.value
-        )
-        await modal.on_submit(interaction)
+        title = self.embed_title.value.strip() if self.embed_title.value else ""
+        content = self.sticky_message.value
+
+        # Use the cog helper to create or replace the sticky
+        try:
+            await self.sticky_cog.create_or_replace_sticky(
+                interaction=interaction,
+                channel=self.channel,
+                title=title,
+                content=content,
+                fmt="embed",
+                colour=colour
+            )
+        except Exception as e:
+            logging.error(f"HexContentModal failed: {e}")
+            err = make_embed("Error", f"Unexpected error:\n`{e}`", discord.Color.red())
+            return await interaction.response.send_message(embed=err, ephemeral=True)
 
 
 class StickyFormatSelect(discord.ui.Select):
     def __init__(self, sticky_cog: "Sticky"):
         options = [
             discord.SelectOption(label="Normal", value="normal", description="Plain text sticky"),
-            discord.SelectOption(label="Embed", value="embed", description="Embed sticky with custom colour"),
+            discord.SelectOption(label="Embed", value="embed", description="Embed sticky with custom colour and title"),
         ]
         super().__init__(placeholder="Choose message format…", min_values=1, max_values=1, options=options)
         self.sticky_cog = sticky_cog
@@ -163,15 +177,22 @@ class StickyFormatView(discord.ui.View):
         self.add_item(StickyFormatSelect(sticky_cog))
 
 
-# — Modal for both normal & embed stickies —
+# Modal for both normal and embed stickies
+# If embed, a title field is provided and saved
 class StickyModal(discord.ui.Modal, title="Set Sticky Message"):
+    sticky_title = discord.ui.TextInput(
+        label="Embed Title",
+        style=discord.TextStyle.short,
+        required=False,
+        placeholder="Title for the sticky embed…"
+    )
     sticky_message = discord.ui.TextInput(
         label="Sticky Message", style=discord.TextStyle.long, required=True,
         placeholder="Enter your sticky message here…"
     )
 
     def __init__(self, bot: commands.Bot, sticky_cog: "Sticky",
-                 selected_format: str, colour: discord.Color, prefilled_message: str = None):
+                 selected_format: str, colour: discord.Color, prefilled_message: str = None, prefilled_title: str = None):
         super().__init__()
         self.bot = bot
         self.sticky_cog = sticky_cog
@@ -179,51 +200,21 @@ class StickyModal(discord.ui.Modal, title="Set Sticky Message"):
         self.colour = colour or discord.Color.blurple()
         if prefilled_message:
             self.sticky_message.default = prefilled_message
+        if prefilled_title:
+            self.sticky_title.default = prefilled_title
 
     async def on_submit(self, interaction: discord.Interaction):
         content = self.sticky_message.value
-        channel = interaction.guild.get_channel(interaction.channel.id)
-        perms = channel.permissions_for(interaction.guild.me)
-        if not perms.send_messages or (self.selected_format == "embed" and not perms.embed_links):
-            err = make_embed("Error", "I lack the permissions to post here.", discord.Color.red())
-            return await interaction.response.send_message(embed=err, ephemeral=True)
-
-        # remove old sticky
-        if channel.id in self.sticky_cog.stickies:
-            old = self.sticky_cog.stickies[channel.id]
-            try:
-                old_msg = await channel.fetch_message(old["message_id"])
-                await old_msg.delete()
-            except Exception:
-                pass
-
-        # send new sticky
-        if self.selected_format == "embed":
-            embed = discord.Embed(
-                title="Sticky Message",
-                description=f"{content}{STICKY_MARKER}",
-                color=self.colour
-            )
-            sent = await channel.send(embed=embed)
-            colour_value = self.colour.value
-        else:
-            sent = await channel.send(f"{content}{STICKY_MARKER}")
-            colour_value = 0
-
-        # save it in memory and DB (including colour)
-        self.sticky_cog.stickies[channel.id] = {
-            "content":    content,
-            "message_id": sent.id,
-            "format":     self.selected_format,
-            "color":      colour_value,
-        }
-        self.sticky_cog.update_sticky_in_db(
-            channel.id, content, sent.id, self.selected_format, colour_value
+        title = self.sticky_title.value.strip() if (self.selected_format == "embed" and self.sticky_title.value) else ""
+        channel = interaction.channel
+        await self.sticky_cog.create_or_replace_sticky(
+            interaction=interaction,
+            channel=channel,
+            title=title,
+            content=content,
+            fmt=self.selected_format,
+            colour=self.colour
         )
-
-        ok = make_embed("Sticky Set", f"Sticky successfully set in {channel.mention}.", discord.Color.green())
-        await interaction.response.send_message(embed=ok, ephemeral=True)
-        audit_log(f"{interaction.user} set a '{self.selected_format}' sticky in #{channel.name}.")
 
 
 class Sticky(commands.Cog):
@@ -231,10 +222,13 @@ class Sticky(commands.Cog):
         self.bot = bot
         self.stickies = {}
         self.db = sqlite3.connect("database.db", check_same_thread=False)
+        # Ensure table and columns exist. Add title and color if missing.
         self.db.execute(
-            "CREATE TABLE IF NOT EXISTS sticky_messages (channel_id INTEGER PRIMARY KEY, content TEXT, message_id INTEGER, format TEXT, color INTEGER DEFAULT 0)"
+            "CREATE TABLE IF NOT EXISTS sticky_messages (channel_id INTEGER PRIMARY KEY, title TEXT, content TEXT, message_id INTEGER, format TEXT, color INTEGER DEFAULT 0)"
         )
         cols = [r[1] for r in self.db.execute("PRAGMA table_info(sticky_messages)").fetchall()]
+        if "title" not in cols:
+            self.db.execute("ALTER TABLE sticky_messages ADD COLUMN title TEXT DEFAULT ''")
         if "color" not in cols:
             self.db.execute("ALTER TABLE sticky_messages ADD COLUMN color INTEGER DEFAULT 0")
         self.db.commit()
@@ -247,20 +241,21 @@ class Sticky(commands.Cog):
     def load_stickies(self):
         self.stickies = {}
         cursor = self.db.execute(
-            "SELECT channel_id, content, message_id, format, color FROM sticky_messages"
+            "SELECT channel_id, title, content, message_id, format, color FROM sticky_messages"
         )
         for row in cursor.fetchall():
             self.stickies[int(row[0])] = {
-                "content": row[1],
-                "message_id": row[2],
-                "format": row[3],
-                "color": row[4],
+                "title": row[1] or "",
+                "content": row[2],
+                "message_id": row[3],
+                "format": row[4],
+                "color": row[5],
             }
 
-    def update_sticky_in_db(self, channel_id: int, content: str, message_id: int, fmt: str, colour: int):
+    def update_sticky_in_db(self, channel_id: int, title: str, content: str, message_id: int, fmt: str, colour: int):
         self.db.execute(
-            "INSERT OR REPLACE INTO sticky_messages (channel_id, content, message_id, format, color) VALUES (?, ?, ?, ?, ?)",
-            (channel_id, content, message_id, fmt, colour),
+            "INSERT OR REPLACE INTO sticky_messages (channel_id, title, content, message_id, format, color) VALUES (?, ?, ?, ?, ?, ?)",
+            (channel_id, title, content, message_id, fmt, colour),
         )
         self.db.commit()
 
@@ -314,17 +309,73 @@ class Sticky(commands.Cog):
 
                 fmt = sticky.get("format", "normal")
                 colour = sticky.get("color", discord.Color.blurple().value)
-                new_sticky = await self._send_sticky(channel, sticky["content"], fmt, colour)
+                title = sticky.get("title", "") or ""
+                new_sticky = await self._send_sticky(channel, title, sticky["content"], fmt, colour)
 
                 self.stickies[channel.id] = {
-                    "content":    sticky["content"],
+                    "title":     title,
+                    "content":   sticky["content"],
                     "message_id": new_sticky.id,
-                    "format":     fmt,
-                    "color":      colour,
+                    "format":    fmt,
+                    "color":     colour,
                 }
-                self.update_sticky_in_db(channel.id, sticky["content"], new_sticky.id, fmt, colour)
+                self.update_sticky_in_db(channel.id, title, sticky["content"], new_sticky.id, fmt, colour)
             except Exception as e:
                 logging.error(f"Error updating sticky in channel #{channel.name}: {e}")
+
+    async def _debounced_update(self, channel: discord.abc.Messageable, sticky: dict):
+        try:
+            await asyncio.sleep(self.debounce_interval)
+            await self.update_sticky_for_channel(channel, sticky, force_update=False)
+        finally:
+            self.debounce_tasks.pop(channel.id, None)
+
+    async def _send_sticky(self, channel: discord.TextChannel, title: str, content: str, fmt: str, colour_value: int):
+        if fmt == "embed":
+            embed = discord.Embed(
+                title=title or "Sticky Message",
+                description=f"{content}{STICKY_MARKER}",
+                color=discord.Color(colour_value)
+            )
+            return await channel.send(embed=embed)
+        else:
+            return await channel.send(f"{content}{STICKY_MARKER}")
+
+    async def create_or_replace_sticky(self, interaction: discord.Interaction, channel: discord.TextChannel, title: str, content: str, fmt: str, colour: discord.Color):
+        perms = channel.permissions_for(interaction.guild.me)
+        if not perms.send_messages or (fmt == "embed" and not perms.embed_links):
+            err = make_embed("Error", "I lack the permissions to post here.", discord.Color.red())
+            return await interaction.response.send_message(embed=err, ephemeral=True)
+
+        # Remove old sticky if present
+        if channel.id in self.stickies:
+            try:
+                old_msg = await channel.fetch_message(self.stickies[channel.id]["message_id"])
+                await old_msg.delete()
+            except Exception:
+                pass
+
+        # Send new sticky
+        if fmt == "embed":
+            sent = await self._send_sticky(channel, title, content, "embed", colour.value)
+            colour_value = colour.value
+        else:
+            sent = await self._send_sticky(channel, "", content, "normal", 0)
+            colour_value = 0
+
+        # Save memory and DB
+        self.stickies[channel.id] = {
+            "title":      title if fmt == "embed" else "",
+            "content":    content,
+            "message_id": sent.id,
+            "format":     fmt,
+            "color":      colour_value,
+        }
+        self.update_sticky_in_db(channel.id, self.stickies[channel.id]["title"], content, sent.id, fmt, colour_value)
+
+        ok = make_embed("Sticky Set", f"Sticky successfully set in {channel.mention}.", discord.Color.green())
+        await interaction.response.send_message(embed=ok, ephemeral=True)
+        audit_log(f"{interaction.user} set a '{fmt}' sticky in #{channel.name}.")
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -364,30 +415,10 @@ class Sticky(commands.Cog):
         if message.author == self.bot.user and message.channel.id in self.stickies:
             sticky = self.stickies[message.channel.id]
             if message.id == sticky["message_id"]:
-                # cancel any pending debounce update for this channel
                 task = self.debounce_tasks.pop(message.channel.id, None)
                 if task:
                     task.cancel()
-                # force a re-send right away
                 await self.update_sticky_for_channel(message.channel, sticky, force_update=True)
-
-    async def _debounced_update(self, channel: discord.abc.Messageable, sticky: dict):
-        try:
-            await asyncio.sleep(self.debounce_interval)
-            await self.update_sticky_for_channel(channel, sticky, force_update=False)
-        finally:
-            self.debounce_tasks.pop(channel.id, None)
-
-    async def _send_sticky(self, channel: discord.TextChannel, content: str, fmt: str, colour_value: int):
-        if fmt == "embed":
-            embed = discord.Embed(
-                title="Sticky Message",
-                description=f"{content}{STICKY_MARKER}",
-                color=discord.Color(colour_value)
-            )
-            return await channel.send(embed=embed)
-        else:
-            return await channel.send(f"{content}{STICKY_MARKER}")
 
     @app_commands.command(name="setsticky", description="Set a sticky message in the channel.")
     async def set_sticky(self, interaction: discord.Interaction):
@@ -413,6 +444,7 @@ class Sticky(commands.Cog):
         ok = make_embed("Sticky Removed", f"Removed sticky from {channel.mention}.", discord.Color.green())
         await interaction.response.send_message(embed=ok, ephemeral=True)
         audit_log(f"{interaction.user} removed sticky in #{channel.name}.")
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Sticky(bot))

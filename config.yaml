@@ -54,5 +54,28 @@ welcome_enabled: true     # Set to true to enable welcome messages.
 # --------------------------
 # Instagram Settings
 # --------------------------
-instagram_username: thisissigrid
+instagram_username: sigrid
 instagram_poll_interval: 300   # seconds between checks.
+
+# --------------------------
+# Stats Settings
+# --------------------------
+# The category the bot will use for the member count channel.
+# If it does not exist, /setupmembercount will create it.
+stats_category_name: "server stats 📊"
+
+# The voice channel name format. You MUST include {count}.
+# Example outputs: "Members: 1234" or "👥 Members • 1,234"
+member_count_name_format: "Members: {count}"
+
+# Whether to include bot accounts in the count.
+# true = include bots, false = exclude bots
+member_count_include_bots: false
+
+# If the member count channel is deleted, should the bot recreate it
+# for guilds it has already configured during this runtime.
+member_count_auto_repair: true
+
+# How often the name is refreshed automatically, in minutes.
+# The cog enforces a minimum of 5 minutes even if you set a lower value.
+member_count_refresh_minutes: 30

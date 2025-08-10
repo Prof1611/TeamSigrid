@@ -4,12 +4,13 @@ import yaml
 from discord import app_commands
 from discord.ext import commands
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import requests  # For HTTP requests to the Live page
 import unicodedata
 import string
 from bs4 import BeautifulSoup  # For HTML parsing
+from typing import List, Tuple, Optional
 
 
 def audit_log(message: str):
@@ -38,8 +39,8 @@ class Scrape(commands.Cog):
         # Load the config file with UTF-8 encoding.
         with open("config.yaml", "r", encoding="utf-8") as config_file:
             self.config = yaml.safe_load(config_file)
-        # The URL of Sigrid's tour page (HTML-based).
-        self.LIVE_PAGE_URL = "https://www.thisissigrid.com/tour/"
+        # The URL containing the <section id="live"> structure.
+        self.LIVE_PAGE_URL = "https://www.thisissigrid.com/"
         audit_log("Scrape cog initialised and configuration loaded successfully.")
 
     @commands.Cog.listener()
@@ -47,7 +48,7 @@ class Scrape(commands.Cog):
         logging.info(f"\033[96mScrape\033[0m cog synced successfully.")
         audit_log("Scrape cog synced successfully.")
 
-    @discord.app_commands.command(
+    @app_commands.command(
         name="scrape",
         description="Checks the band's website for new shows and updates #live-shows and server events.",
     )
@@ -91,110 +92,160 @@ class Scrape(commands.Cog):
             )
             await interaction.followup.send(embed=error_embed)
 
-    def run_scraper(self):
+    # ---------------------------
+    # HTML scraping for #live
+    # ---------------------------
+
+    def run_scraper(self) -> List[Tuple[str, str, str, Optional[str]]]:
         """
-        Scrape Sigrid's tour page by fetching its HTML and extracting
-        each <li class="date-item">. Return a list of tuples:
-            [(formatted_date, venue, location), ...]
+        Scrape Sigrid's homepage for the <section id="live"> structure and extract
+        each <div class="live-date"> block. Return a list of tuples:
+            [(formatted_date, venue, location, tickets_url), ...]
+        where:
+          formatted_date = "16 August 2025"
+          venue = "MS Dockville 2025"
+          location = "Hamburg, DE"  or "大阪市" if country absent
+          tickets_url = "https://..." or None
         """
-        logging.info("Running scraper by parsing HTML from Sigrid's tour page...")
-        audit_log("Starting scraper: Requesting event data from Sigrid tour HTML.")
-        new_entries = []
+        logging.info("Running scraper by parsing HTML from Sigrid's live section...")
+        audit_log(
+            "Starting scraper: Requesting event data from homepage #live section."
+        )
+        new_entries: List[Tuple[str, str, str, Optional[str]]] = []
 
         try:
-            response = requests.get(self.LIVE_PAGE_URL, timeout=10)
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/126.0.0.0 Safari/537.36"
+                )
+            }
+            response = requests.get(self.LIVE_PAGE_URL, timeout=15, headers=headers)
             response.raise_for_status()
             html = response.text
 
             # Parse the HTML with BeautifulSoup
             soup = BeautifulSoup(html, "html.parser")
 
-            # Find the <ul class="liveContainer"> … </ul> block
-            live_container = soup.find("ul", class_="liveContainer")
-            if not live_container:
-                logging.error("Could not find <ul class='liveContainer'> in HTML.")
-                audit_log("Error: <ul class='liveContainer'> not found on /live/ page.")
+            # Find the <section id="live"> and inside it the <div id="live-dates">
+            live_section = soup.find("section", id="live")
+            if not live_section:
+                logging.error("Could not find <section id='live'> on the page.")
+                audit_log("Error: <section id='live'> not found on homepage.")
                 return []
 
-            # Each <li class="date-item"> is one show
-            items = live_container.find_all("li", class_="date-item")
-            logging.info(f"Found {len(items)} <li class='date-item'> elements.")
-            audit_log(f"Found {len(items)} shows in HTML.")
+            live_dates = live_section.find("div", id="live-dates")
+            if not live_dates:
+                logging.error("Could not find <div id='live-dates'> within #live.")
+                audit_log("Error: <div id='live-dates'> not found in #live section.")
+                return []
 
-            for li in items:
+            # Each <div class="live-date"> is one show
+            items = live_dates.find_all("div", class_="live-date")
+            logging.info(f"Found {len(items)} <div class='live-date'> elements.")
+            audit_log(f"Found {len(items)} shows in #live section.")
+
+            for div in items:
                 try:
-                    # Extract date from <div class="googleDate">
-                    date_tag = li.find("div", class_="googleDate")
+                    # Extract fields
+                    date_tag = div.find("p", class_="date")
+                    venue_tag = div.find("p", class_="venue")
+                    location_tag = div.find("p", class_="location")
+                    ticket_tag = div.find("a", class_="tickets")
+
                     raw_date = date_tag.get_text(strip=True) if date_tag else ""
-                    formatted_date = self._parse_raw_date(raw_date)
+                    venue = venue_tag.get_text(strip=True) if venue_tag else ""
+                    raw_location = (
+                        location_tag.get_text(strip=True) if location_tag else ""
+                    )
+                    tickets_url = ticket_tag.get("href") if ticket_tag else None
 
-                    # Extract venue from <div class="s_venue">
-                    venue_tag = li.find("div", class_="s_venue")
-                    venue_name = venue_tag.get_text(strip=True) if venue_tag else ""
+                    formatted_date = self._parse_live_date(raw_date)
+                    location = self._clean_location(raw_location)
 
-                    # Extract location from addressLocality and addressCountry,
-                    # but strip any trailing commas first
-                    locality_tag = li.find("span", class_="addressLocality")
-                    country_tag = li.find("span", class_="addressCountry")
-
-                    if locality_tag:
-                        # .get_text(strip=True) might give "Nürnberg," (with a trailing comma),
-                        # so rstrip(",") removes any trailing comma if present.
-                        locality = locality_tag.get_text(strip=True).rstrip(",")
-                    else:
-                        locality = ""
-
-                    if country_tag:
-                        country = country_tag.get_text(strip=True).rstrip(",")
-                    else:
-                        country = ""
-
-                    if locality and country:
-                        location = f"{locality}, {country}"
-                    else:
-                        # If one is missing, just use whichever is non-empty
-                        location = locality or country
-
-                    new_entries.append((formatted_date, venue_name, location))
+                    new_entries.append((formatted_date, venue, location, tickets_url))
                     logging.debug(
-                        f"Parsed entry: ({formatted_date}, {venue_name}, {location})"
+                        f"Parsed entry: ({formatted_date}, {venue}, {location}, {tickets_url})"
                     )
                     audit_log(
-                        f"Processed show: {formatted_date} @ {venue_name}, {location}"
+                        f"Processed show: {formatted_date} @ {venue}, {location} | Tickets: {tickets_url or 'None'}"
                     )
 
                 except Exception as inner_e:
-                    logging.error(f"Error parsing one <li>: {inner_e}")
-                    audit_log(f"Error parsing <li class='date-item'>: {inner_e}")
+                    logging.error(f"Error parsing one <div.live-date>: {inner_e}")
+                    audit_log(f"Error parsing <div class='live-date'>: {inner_e}")
                     continue
 
         except Exception as e:
-            logging.error(f"Error fetching /live/ page: {e}")
+            logging.error(f"Error fetching homepage live section: {e}")
             audit_log(f"Error fetching HTML from {self.LIVE_PAGE_URL}: {e}")
 
         return new_entries
 
-    def _parse_raw_date(self, raw: str) -> str:
+    @staticmethod
+    def _strip_ordinal(day_text: str) -> str:
+        """Remove English ordinal suffixes from a day string like '16th' -> '16'."""
+        return (
+            day_text.replace("st", "")
+            .replace("nd", "")
+            .replace("rd", "")
+            .replace("th", "")
+        )
+
+    def _parse_live_date(self, raw: str) -> str:
         """
-        Convert raw date string like "25-Jun-06" into "06 June 2025".
-        The site's format is “YY-Mon-DD” where “25” is the year “2025”.
+        Convert raw date like '16th Aug 2025' into '16 August 2025'.
+        Falls back to the raw string if parsing fails.
         """
         try:
-            parts = raw.split("-")
+            parts = raw.split()
             if len(parts) == 3:
-                year_two_digit = parts[0]  # e.g. "25"
-                month_abbr = parts[1]  # e.g. "Jun"
-                day = parts[2]  # e.g. "06"
-
-                year_full = int("20" + year_two_digit)  # → 2025
-                dt = datetime.strptime(f"{year_full} {month_abbr} {day}", "%Y %b %d")
-                return dt.strftime("%d %B %Y")  # → "06 June 2025"
-            else:
-                return raw
-        except Exception as e:
-            logging.error(f"Error parsing raw date '{raw}': {e}")
-            audit_log(f"Error parsing raw date '{raw}': {e}")
+                day = self._strip_ordinal(parts[0])
+                month_abbr = parts[1]
+                year = parts[2]
+                dt = datetime.strptime(f"{day} {month_abbr} {year}", "%d %b %Y")
+                return dt.strftime("%d %B %Y")
             return raw
+        except Exception as e:
+            logging.error(f"Error parsing live date '{raw}': {e}")
+            audit_log(f"Error parsing live date '{raw}': {e}")
+            return raw
+
+    @staticmethod
+    def _clean_location(raw: str) -> str:
+        """
+        Clean location text. Removes trailing commas and excess whitespace.
+        For cases like '大阪市, ' returns '大阪市'.
+        """
+        if not raw:
+            return ""
+        cleaned = raw.strip().rstrip(",").strip()
+        return cleaned
+
+    # ---------------------------
+    # Timezone handling
+    # ---------------------------
+
+    def _get_london_tz(self):
+        """
+        Try to return an IANA Europe/London timezone.
+        On Windows without tzdata this may fail, so fall back to UTC with a warning.
+        """
+        try:
+            return ZoneInfo("Europe/London")
+        except Exception as e:
+            audit_log(
+                f"Timezone 'Europe/London' unavailable, falling back to UTC. Install 'tzdata' to fix. Underlying error: {e}"
+            )
+            logging.warning(
+                "Timezone 'Europe/London' unavailable. Falling back to UTC."
+            )
+            return timezone.utc
+
+    # ---------------------------
+    # Legacy format methods kept for compatibility
+    # ---------------------------
 
     def format_date(self, date_str):
         # Original method for page-based dates remains unchanged.
@@ -215,9 +266,11 @@ class Scrape(commands.Cog):
 
         - If it's a single date, set the event from 7:00 PM to 11:00 PM.
         - If it's a range, set the start time to 8:00 AM on the first day and the end time to 11:00 PM on the last day.
+
+        Uses Europe/London if available, otherwise UTC.
         """
         try:
-            tz = ZoneInfo("Europe/London")
+            tz = self._get_london_tz()
             if "-" in formatted_date:
                 start_date_str, end_date_str = map(str.strip, formatted_date.split("-"))
                 dt_start = datetime.strptime(start_date_str, "%d %B %Y")
@@ -240,8 +293,12 @@ class Scrape(commands.Cog):
         except Exception as e:
             logging.error(f"Error parsing event dates from '{formatted_date}': {e}")
             audit_log(f"Error parsing event dates from '{formatted_date}': {e}")
-            now = datetime.now(ZoneInfo("Europe/London"))
+            now = datetime.now(timezone.utc)
             return now, now + timedelta(hours=4)
+
+    # ---------------------------
+    # Discord thread and event creation
+    # ---------------------------
 
     async def check_forum_threads(self, guild, interaction, new_entries):
         audit_log("Starting check for forum threads for new entries.")
@@ -262,7 +319,8 @@ class Scrape(commands.Cog):
 
         new_threads_created = 0
         for entry in new_entries:
-            event_date, venue, location = entry
+            # entry = (event_date, venue, location, tickets_url)
+            event_date, venue, location, tickets_url = entry
             thread_title = event_date.title()
             norm_title = normalize_string(thread_title)
             norm_location = normalize_string(location)
@@ -281,7 +339,16 @@ class Scrape(commands.Cog):
                 )
             if not exists:
                 try:
-                    content = f"Sigrid at {venue.title()}, {location.title()}"
+                    content_base = (
+                        f"Sigrid at {venue.title()}, {location.title()}"
+                        if venue or location
+                        else "Sigrid live"
+                    )
+                    content = (
+                        f"{content_base}\nTickets: {tickets_url}"
+                        if tickets_url
+                        else content_base
+                    )
                     logging.info(f"Creating thread for: {thread_title}")
                     await liveshows_channel.create_thread(
                         name=thread_title,
@@ -409,8 +476,11 @@ class Scrape(commands.Cog):
             f"Guild '{guild.name}' has {len(scheduled_events)} scheduled events."
         )
         for entry in new_entries:
-            event_date, venue, location = entry
-            event_name = f"{event_date.title()} - {venue.title() if venue else ''}"
+            # entry = (event_date, venue, location, tickets_url)
+            event_date, venue, location, tickets_url = entry
+            event_name = (
+                f"{event_date.title()} - {venue.title() if venue else ''}".strip(" -")
+            )
             norm_event_name = normalize_string(event_name)
             logging.debug(f"Normalized scheduled event name: '{norm_event_name}'")
             exists = any(
@@ -425,13 +495,28 @@ class Scrape(commands.Cog):
                 )
             if not exists:
                 start_time, end_time = self.parse_event_dates(event_date)
+                description_lines = []
+                if venue or location:
+                    description_lines.append(
+                        f"Sigrid at {venue.title() if venue else ''}{', ' if venue and location else ''}{location.title() if location else ''}".strip(
+                            ", "
+                        )
+                    )
+                if tickets_url:
+                    description_lines.append(f"Tickets: {tickets_url}")
+                description = (
+                    "\n".join(description_lines) if description_lines else "Sigrid live"
+                )
+
                 try:
                     await guild.create_scheduled_event(
                         name=event_name,
-                        description=f"Sigrid at {venue.title() if venue else ''}, {location.title() if location else ''}",
+                        description=description,
                         start_time=start_time,
                         end_time=end_time,
-                        location=f"{venue.title() if venue else ''}, {location.title() if location else ''}",
+                        location=f"{venue.title() if venue else ''}{', ' if venue and location else ''}{location.title() if location else ''}".strip(
+                            ", "
+                        ),
                         entity_type=discord.EntityType.external,
                         image=event_image,
                         privacy_level=discord.PrivacyLevel.guild_only,
@@ -477,7 +562,7 @@ class Scrape(commands.Cog):
         self, interaction, threads_created: int, events_created: int
     ):
         if threads_created == 0 and events_created == 0:
-            description = "All up to date! No new threads or scheduled events created."
+            description = "All up to date. No new threads or scheduled events created."
         else:
             description = (
                 f"**Forum Threads:** {threads_created} new thread{'s' if threads_created != 1 else ''} created.\n"

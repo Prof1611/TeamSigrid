@@ -57,7 +57,7 @@ class Welcome(commands.Cog):
                 f"Hey {member.mention}, welcome to the home of Sigrid! 🌟\n"
                 f"Make sure to check out <#{self.new_member_channel_id}> to find your way around! 🎶"
             ),
-            color = discord.Color(0x0CA115),
+            color = discord.Color.yellow,
         )
         
         embed.set_image(url="attachment://welcome-image.jpg")
