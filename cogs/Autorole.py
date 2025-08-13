@@ -84,7 +84,7 @@ class AutoRole(commands.Cog):
         role = member.guild.get_role(int(self.role_id))
         if role is None:
             logging.error(
-                f"[AutoRole] Role with ID {self.role_id} not found in guild '{member.guild.name}' ({member.guild.id})."
+                f"Role with ID {self.role_id} not found in guild '{member.guild.name}' ({member.guild.id})."
             )
             audit_log(
                 f"AutoRole error: role {self.role_id} not found in guild '{member.guild.name}' ({member.guild.id})."
@@ -94,28 +94,26 @@ class AutoRole(commands.Cog):
         try:
             await member.add_roles(role, reason="AutoRole: assign on join")
             logging.info(
-                f"[AutoRole] Assigned '{role.name}' to {member} in '{member.guild.name}'."
+                f"Assigned '{role.name}' to {member} in '{member.guild.name}'."
             )
             audit_log(
                 f"Assigned role '{role.name}' ({role.id}) to {member} in guild '{member.guild.name}' ({member.guild.id})."
             )
         except discord.Forbidden:
             logging.error(
-                f"[AutoRole] Forbidden when assigning '{role.name}' to {member}. Check permissions/role position."
+                f"Forbidden when assigning '{role.name}' to {member}. Check permissions/role position."
             )
             audit_log(
                 f"AutoRole forbidden: could not assign '{role.name}' to {member} in '{member.guild.name}'."
             )
         except discord.HTTPException as e:
-            logging.error(
-                f"[AutoRole] HTTP error when assigning '{role.name}' to {member}: {e}"
-            )
+            logging.error(f"HTTP error when assigning '{role.name}' to {member}: {e}")
             audit_log(
                 f"AutoRole HTTP error: could not assign '{role.name}' to {member} in '{member.guild.name}': {e}"
             )
         except Exception as e:
             logging.error(
-                f"[AutoRole] Unexpected error when assigning '{role.name}' to {member}: {e}",
+                f"Unexpected error when assigning '{role.name}' to {member}: {e}",
                 exc_info=True,
             )
             audit_log(
@@ -131,17 +129,15 @@ class AutoRole(commands.Cog):
             with open(self.CONFIG_PATH, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
                 if not isinstance(data, dict):
-                    logging.warning(
-                        "[AutoRole] config.yaml is not a dict; using defaults."
-                    )
+                    logging.warning("config.yaml is not a dict; using defaults.")
                     return {}
                 return data
         except FileNotFoundError:
-            logging.error("[AutoRole] config.yaml not found. Using defaults in memory.")
+            logging.error("config.yaml not found. Using defaults in memory.")
             audit_log("AutoRole: config.yaml not found. Using defaults in memory.")
             return {}
         except Exception as e:
-            logging.error(f"[AutoRole] Error loading config.yaml: {e}", exc_info=True)
+            logging.error(f"Error loading config.yaml: {e}", exc_info=True)
             audit_log(f"AutoRole: error loading config.yaml: {e}")
             return {}
 

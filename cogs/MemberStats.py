@@ -73,7 +73,7 @@ class MemberStats(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        logging.info("MemberStats cog synced successfully.")
+        logging.info("\033[96mMemberStats\033[0m cog synced successfully.")
         audit_log("MemberStats cog synced successfully.")
 
         if not getattr(self.bot, "intents", None) or not self.bot.intents.members:
