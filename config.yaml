@@ -81,3 +81,9 @@ member_count_auto_repair: true
 # Minimum enforced by the cog is 5 minutes even if set lower.
 member_count_refresh_minutes: 30
 
+# --------------------------
+# AutoRole Settings
+# --------------------------
+autorole_enabled: true
+autorole_role_id: 1405270772129202246   # the role ID you want to auto-assign
+autorole_include_bots: false           # false = skip bots (recommended), true = also give bots the role
