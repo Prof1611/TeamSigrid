@@ -57,9 +57,9 @@ class Welcome(commands.Cog):
                 f"Hey {member.mention}, welcome to the home of Sigrid! 🌟\n"
                 f"Make sure to check out <#{self.new_member_channel_id}> to find your way around! 🎶"
             ),
-            color = discord.Color.yellow,
+            color=discord.Color.yellow(),
         )
-        
+
         embed.set_image(url="attachment://welcome-image.jpg")
 
         try:
@@ -75,6 +75,14 @@ class Welcome(commands.Cog):
             audit_log(
                 f"Sent welcome message for {member.name} (ID: {member.id}) in channel #{channel.name} (ID: {channel.id}) in guild '{guild.name}' (ID: {guild.id})."
             )
+        except FileNotFoundError:
+            logging.error(
+                f"Welcome image not found at path '{self.welcome_image_path}'. Sending embed without image."
+            )
+            audit_log(
+                f"Welcome image missing at '{self.welcome_image_path}'. Sent embed without image for {member.name} in guild '{guild.name}'."
+            )
+            await channel.send(embed=embed)
         except discord.HTTPException as e:
             logging.error(
                 f"Error sending welcome embed in channel #{channel.name} (ID: {channel.id}): {e}"
