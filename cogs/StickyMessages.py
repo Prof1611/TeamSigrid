@@ -447,7 +447,7 @@ class Sticky(commands.Cog):
                 await self.update_sticky_for_channel(channel, sticky, force_update=False)
         self.initialised = True
 
-    @commands.Cog.listener())
+    @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author == self.bot.user:
             return
