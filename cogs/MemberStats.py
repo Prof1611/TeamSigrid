@@ -350,7 +350,7 @@ class MemberStats(commands.Cog):
                 f"Error updating count on join in guild '{member.guild.name}' ({member.guild.id}): {e}"
             )
 
-    @commands.Cog.listener())
+    @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         try:
             async with self._guild_lock(member.guild.id):
