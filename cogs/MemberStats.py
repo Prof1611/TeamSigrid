@@ -639,7 +639,7 @@ class MemberStats(commands.Cog):
                     f"Moved member count channel to stats category in guild '{channel.guild.name}' ({channel.guild.id})."
                 )
                 logging.info(
-                    f"[{channel.guild.name}] Moved member count channel to '{category.name}'."
+                    f"Moved member count channel to '{category.name}'."
                 )
             except discord.HTTPException as e:
                 logging.warning(
@@ -809,7 +809,7 @@ class MemberStats(commands.Cog):
         try:
             await channel.edit(name=desired, reason=reason)
             logging.info(
-                f"[{channel.guild.name}] Renamed member count channel to '{desired}'."
+                f"Renamed member count channel to '{desired}'."
             )
             audit_log(
                 f"Renamed member count channel to '{desired}' in guild '{channel.guild.name}' ({channel.guild.id})."
@@ -825,7 +825,7 @@ class MemberStats(commands.Cog):
                     try:
                         await channel.edit(name=safe_name, reason=reason + " (discovery-safe fallback)")
                         logging.info(
-                            f"[{channel.guild.name}] Discovery-safe rename applied: '{safe_name}'."
+                            f"Discovery-safe rename applied: '{safe_name}'."
                         )
                         audit_log(
                             f"Discovery-safe rename applied to '{safe_name}' in guild '{channel.guild.name}' ({channel.guild.id})."
