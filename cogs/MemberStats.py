@@ -24,6 +24,8 @@ class MemberStats(commands.Cog):
     Maintains a locked voice channel that shows the current server member count.
     Creation and behaviour are driven only by config.yaml keys.
     The script never writes to config.yaml and never asks for runtime input.
+
+    This version updates the channel name strictly every 5 minutes.
     """
 
     CONFIG_PATH = "config.yaml"
@@ -39,18 +41,12 @@ class MemberStats(commands.Cog):
         self.name_template: str = self.config.get(
             "member_count_name_format", "Members: {count}"
         )
+        # Optional: a discovery-safe fallback in case primary wording is blocked by Server Discovery filters
         self.fallback_name_template: str = self.config.get(
             "member_count_fallback_name_format", "members-{count}"
         )
         self.include_bots: bool = self.config.get("member_count_include_bots", True)
         self.auto_repair: bool = self.config.get("member_count_auto_repair", True)
-        self.periodic_refresh_minutes: int = int(
-            self.config.get("member_count_refresh_minutes", 60)
-        )
-        # New: coalesce rapid renames to avoid 429s
-        self.min_rename_seconds: int = int(
-            self.config.get("member_count_min_rename_seconds", 300)
-        )
 
         # In-memory runtime cache only. Never persisted.
         # Maps guild_id -> channel_id for quick access within the current process.
@@ -62,17 +58,14 @@ class MemberStats(commands.Cog):
         # Concurrency guards per guild
         self._guild_locks: Dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
 
-        # Per-guild rename coalescing state
-        self._last_rename_at: Dict[int, float] = {}          # monotonic timestamps
-        self._pending_counts: Dict[int, int] = {}
-        self._rename_tasks: Dict[int, asyncio.Task] = {}
-
         # Guilds where the primary template was rejected by Discovery filters
         self._discovery_blocked_guilds: Set[int] = set()
 
         # Precompile name-matching regexes used to rediscover the channel at startup
         self._name_regex = self._compile_name_regex(self.name_template)
-        self._fallback_name_regex = self._compile_name_regex(self.fallback_name_template)
+        self._fallback_name_regex = self._compile_name_regex(
+            self.fallback_name_template
+        )
 
     # ---------------------------
     # Lifecycle
@@ -104,11 +97,8 @@ class MemberStats(commands.Cog):
                     f"[Startup verify] Error in guild '{guild.name}' ({guild.id}): {e}"
                 )
 
-        # Start periodic refresh after verification
+        # Start periodic refresh (strictly every 5 minutes)
         if not self.periodic_refresh.is_running():
-            self.periodic_refresh.change_interval(
-                minutes=max(5, self.periodic_refresh_minutes)
-            )
             self.periodic_refresh.start()
 
     # ---------------------------
@@ -145,12 +135,10 @@ class MemberStats(commands.Cog):
                         reason=f"Requested by {ctx.author} via /setupmembercount",
                     )
                 else:
-                    # Already exists, just move, lock, and queue rename if needed
-                    await self._place_and_lock_and_rename(
-                        channel=channel,
-                        category_name=self.stats_category_name,
-                        include_bots=self.include_bots,
-                        reason=f"Verify via /setupmembercount by {ctx.author}",
+                    # Already exists, just move, lock, and refresh the name
+                    await self._place_and_lock(channel, self.stats_category_name)
+                    await self._update_member_count_channel(
+                        guild, reason=f"Verify via /setupmembercount by {ctx.author}"
                     )
 
                 # Mark this guild as configured in-memory
@@ -226,20 +214,12 @@ class MemberStats(commands.Cog):
 
         try:
             async with self._guild_lock(guild.id):
-                channel = await self._get_or_discover_channel(guild)
-                if channel is None:
-                    await ctx.reply(
-                        "No member count channel detected. Run /setupmembercount.",
-                        mention_author=False,
-                    )
-                    return
-                updated = await self._queue_rename(
+                updated = await self._update_member_count_channel(
                     guild, reason=f"Manual refresh by {ctx.author}"
                 )
             if updated:
                 await ctx.reply(
-                    "Queued a refresh of the member count channel name.",
-                    mention_author=False,
+                    "Refreshed the member count channel name.", mention_author=False
                 )
             else:
                 await ctx.reply(
@@ -252,9 +232,7 @@ class MemberStats(commands.Cog):
                 mention_author=False,
             )
         except discord.HTTPException as e:
-            logging.error(
-                f"Error while updating the channel name: {e}", exc_info=True
-            )
+            logging.error(f"Error while updating the channel name: {e}", exc_info=True)
             await ctx.reply(
                 "I ran into a problem while updating the channel. Please try again later.",
                 mention_author=False,
@@ -327,88 +305,18 @@ class MemberStats(commands.Cog):
         )
 
     # ---------------------------
-    # Event listeners
+    # Background task (5 minutes)
     # ---------------------------
 
-    @commands.Cog.listener()
-    async def on_member_join(self, member: discord.Member):
-        # Queue a rename rather than hammering the API
-        try:
-            async with self._guild_lock(member.guild.id):
-                channel = await self._get_or_discover_channel(member.guild)
-                if channel is None:
-                    return
-                await self._queue_rename(
-                    member.guild, reason=f"Member joined: {member} ({member.id})"
-                )
-        except Exception as e:
-            logging.error(
-                f"on_member_join update error in guild '{member.guild.name}' ({member.guild.id}): {e}",
-                exc_info=True,
-            )
-            audit_log(
-                f"Error updating count on join in guild '{member.guild.name}' ({member.guild.id}): {e}"
-            )
-
-    @commands.Cog.listener()
-    async def on_member_remove(self, member: discord.Member):
-        try:
-            async with self._guild_lock(member.guild.id):
-                channel = await self._get_or_discover_channel(member.guild)
-                if channel is None:
-                    return
-                await self._queue_rename(
-                    member.guild, reason=f"Member left: {member} ({member.id})"
-                )
-        except Exception as e:
-            logging.error(
-                f"on_member_remove update error in guild '{member.guild.name}' ({member.guild.id}): {e}",
-                exc_info=True,
-            )
-            audit_log(
-                f"Error updating count on leave in guild '{member.guild.name}' ({member.guild.id}): {e}"
-            )
-
-    @commands.Cog.listener()
-    async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
-        """If the member count channel is deleted, optionally auto-repair based on runtime state."""
-        try:
-            guild = channel.guild
-            cached_id = self._channel_cache.get(guild.id)
-            if cached_id and channel.id == cached_id:
-                audit_log(
-                    f"Configured member count channel deleted in guild '{guild.name}' ({guild.id})."
-                )
-                logging.warning("Member count channel was deleted.")
-                # Clear runtime cache
-                self._channel_cache.pop(guild.id, None)
-                # Auto-repair only if enabled and we had previously configured this guild in this runtime
-                if self.auto_repair and guild.id in self._configured_guilds:
-                    async with self._guild_lock(guild.id):
-                        await self._ensure_member_count_channel(
-                            guild=guild,
-                            category_name=self.stats_category_name,
-                            name_template=self.name_template,
-                            include_bots=self.include_bots,
-                            reason="Auto-repair after deletion",
-                        )
-        except Exception as e:
-            logging.error(f"on_guild_channel_delete error: {e}", exc_info=True)
-
-    # ---------------------------
-    # Background task
-    # ---------------------------
-
-    @tasks.loop(minutes=60.0)
+    @tasks.loop(minutes=5.0)
     async def periodic_refresh(self):
-        """Periodic safety refresh. Skips guilds with no discoverable channel."""
+        """Update member count every 5 minutes."""
         for guild in list(self.bot.guilds):
             try:
-                channel = await self._get_or_discover_channel(guild)
-                if channel is None:
-                    continue
                 async with self._guild_lock(guild.id):
-                    await self._queue_rename(guild, reason="Periodic refresh")
+                    await self._update_member_count_channel(
+                        guild, reason="5-minute scheduled refresh"
+                    )
             except Exception as e:
                 logging.error(
                     f"[Periodic refresh] Guild '{guild.name}' ({guild.id}) error: {e}",
@@ -418,7 +326,7 @@ class MemberStats(commands.Cog):
     @periodic_refresh.before_loop
     async def before_periodic_refresh(self):
         await self.bot.wait_until_ready()
-        await asyncio.sleep(10)
+        await asyncio.sleep(5)
 
     # ---------------------------
     # Internal helpers
@@ -621,14 +529,8 @@ class MemberStats(commands.Cog):
             self.include_bots = original_include
             self._name_regex = self._compile_name_regex(self.name_template)
 
-    async def _place_and_lock_and_rename(
-        self,
-        channel: discord.VoiceChannel,
-        category_name: str,
-        include_bots: bool,
-        reason: str,
-    ):
-        """Move to category if needed, lock overwrites, then queue a rename if needed."""
+    async def _place_and_lock(self, channel: discord.VoiceChannel, category_name: str):
+        """Move to category if needed, then lock overwrites."""
         category = await self._find_or_create_stats_category(
             channel.guild, category_name
         )
@@ -638,9 +540,7 @@ class MemberStats(commands.Cog):
                 audit_log(
                     f"Moved member count channel to stats category in guild '{channel.guild.name}' ({channel.guild.id})."
                 )
-                logging.info(
-                    f"Moved member count channel to '{category.name}'."
-                )
+                logging.info(f"Moved member count channel to '{category.name}'.")
             except discord.HTTPException as e:
                 logging.warning(
                     f"Failed moving channel category in '{channel.guild.name}': {e}"
@@ -669,8 +569,81 @@ class MemberStats(commands.Cog):
                     f"Failed updating overwrites in '{channel.guild.name}': {e}"
                 )
 
-        # Queue a rename rather than doing it immediately
-        await self._queue_rename(channel.guild, reason)
+    async def _apply_rename(
+        self, channel: discord.VoiceChannel, count: int, reason: str
+    ):
+        """Attempt to rename. If Discovery blocks, switch to fallback template for this guild and retry once."""
+        desired = self._format_name_for_guild(channel.guild.id, count)
+        if channel.name == desired:
+            return
+        try:
+            await channel.edit(name=desired, reason=reason)
+            logging.info(f"Renamed member count channel to '{desired}'.")
+            audit_log(
+                f"Renamed member count channel to '{desired}' in guild '{channel.guild.name}' ({channel.guild.id})."
+            )
+        except discord.HTTPException as e:
+            # 50035 Invalid Form Body with Discovery filter complaint
+            text = str(e)
+            if (
+                e.code == 50035
+                and "Contains words not allowed for servers in Server Discovery" in text
+            ):
+                gid = channel.guild.id
+                if gid not in self._discovery_blocked_guilds:
+                    self._discovery_blocked_guilds.add(gid)
+                    safe_name = self._format_name_for_guild(
+                        gid, count
+                    )  # now uses fallback
+                    try:
+                        await channel.edit(
+                            name=safe_name, reason=reason + " (discovery-safe fallback)"
+                        )
+                        logging.info(f"Discovery-safe rename applied: '{safe_name}'.")
+                        audit_log(
+                            f"Discovery-safe rename applied to '{safe_name}' in guild '{channel.guild.name}' ({channel.guild.id})."
+                        )
+                        return
+                    except Exception as inner:
+                        logging.error(
+                            f"Failed applying discovery-safe rename in '{channel.guild.name}': {inner}",
+                            exc_info=True,
+                        )
+                # If already blocked or retry failed, re-raise original
+            raise
+        except discord.Forbidden:
+            logging.error(
+                f"Forbidden renaming channel #{channel.name} in '{channel.guild.name}'."
+            )
+            audit_log(
+                f"Forbidden renaming member count channel in guild '{channel.guild.name}' ({channel.guild.id})."
+            )
+
+    async def _update_member_count_channel(
+        self, guild: discord.Guild, reason: str
+    ) -> bool:
+        """
+        Update the channel's name with the current count.
+        Returns True if a channel was updated or ensured, False if none detected.
+        """
+        channel = await self._get_or_discover_channel(guild)
+        if channel is None:
+            # If we previously had it configured this runtime and auto_repair is on, recreate it
+            if self.auto_repair and guild.id in self._configured_guilds:
+                await self._ensure_member_count_channel(
+                    guild=guild,
+                    category_name=self.stats_category_name,
+                    name_template=self.name_template,
+                    include_bots=self.include_bots,
+                    reason="Auto-repair during 5-minute refresh",
+                )
+                return True
+            return False
+
+        await self._place_and_lock(channel, self.stats_category_name)
+        count = self._current_member_count(guild, self.include_bots)
+        await self._apply_rename(channel, count, reason)
+        return True
 
     async def _ensure_member_count_channel(
         self,
@@ -726,12 +699,12 @@ class MemberStats(commands.Cog):
                     f"Recreated member count channel #{channel.name} ({channel.id}) in guild '{guild.name}' ({guild.id})."
                 )
             else:
-                # Already exists, just place, lock, and queue rename
-                await self._place_and_lock_and_rename(
-                    channel=channel,
-                    category_name=category_name,
-                    include_bots=include_bots,
-                    reason=reason,
+                # Already exists, just ensure placement/lock and rename
+                await self._place_and_lock(channel, category_name)
+                await self._apply_rename(
+                    channel,
+                    self._current_member_count(guild, include_bots),
+                    reason,
                 )
 
             return channel
@@ -739,112 +712,6 @@ class MemberStats(commands.Cog):
             self.name_template = original_template
             self.include_bots = original_include
             self._name_regex = self._compile_name_regex(self.name_template)
-
-    async def _queue_rename(self, guild: discord.Guild, reason: str) -> bool:
-        """
-        Queue a rename respecting per-guild min interval. Returns False if no channel.
-        """
-        channel = await self._get_or_discover_channel(guild)
-        if channel is None:
-            return False
-
-        count = self._current_member_count(guild, self.include_bots)
-        self._pending_counts[guild.id] = count
-
-        # Spawn or wake the worker for this guild
-        if guild.id not in self._rename_tasks or self._rename_tasks[guild.id].done():
-            self._rename_tasks[guild.id] = asyncio.create_task(
-                self._rename_worker(guild, reason), name=f"memberstats_rename_{guild.id}"
-            )
-        return True
-
-    async def _rename_worker(self, guild: discord.Guild, reason: str):
-        """
-        Coalescing worker: ensures at least min_rename_seconds between edits.
-        It applies the latest pending count when the window allows.
-        """
-        gid = guild.id
-        # Loop while there is a pending value that we have not applied
-        while True:
-            desired = self._pending_counts.get(gid)
-            if desired is None:
-                return  # nothing more to do
-
-            # Respect min interval
-            now = asyncio.get_running_loop().time()
-            last = self._last_rename_at.get(gid, 0.0)
-            wait_for = (last + float(self.min_rename_seconds)) - now
-            if wait_for > 0:
-                await asyncio.sleep(wait_for)
-
-            # Recheck desired just before editing
-            desired = self._pending_counts.get(gid)
-            if desired is None:
-                return
-
-            try:
-                async with self._guild_lock(gid):
-                    channel = await self._get_or_discover_channel(guild)
-                    if channel is None:
-                        # Nothing to do; clear pending and exit
-                        self._pending_counts.pop(gid, None)
-                        return
-                    await self._apply_rename(channel, desired, reason)
-                    self._last_rename_at[gid] = asyncio.get_running_loop().time()
-                    # Clear one applied value but keep looping in case a new one arrives
-                    self._pending_counts.pop(gid, None)
-            except Exception as e:
-                logging.error(
-                    f"Rename worker error in guild '{guild.name}' ({gid}): {e}",
-                    exc_info=True,
-                )
-                # Back off slightly to avoid hot loops on persistent errors
-                await asyncio.sleep(10)
-
-    async def _apply_rename(self, channel: discord.VoiceChannel, count: int, reason: str):
-        """Attempt to rename. If Discovery blocks, switch to fallback template for this guild and retry once."""
-        desired = self._format_name_for_guild(channel.guild.id, count)
-        if channel.name == desired:
-            return
-        try:
-            await channel.edit(name=desired, reason=reason)
-            logging.info(
-                f"Renamed member count channel to '{desired}'."
-            )
-            audit_log(
-                f"Renamed member count channel to '{desired}' in guild '{channel.guild.name}' ({channel.guild.id})."
-            )
-        except discord.HTTPException as e:
-            # 50035 Invalid Form Body with Discovery filter complaint
-            text = str(e)
-            if e.code == 50035 and "Contains words not allowed for servers in Server Discovery" in text:
-                gid = channel.guild.id
-                if gid not in self._discovery_blocked_guilds:
-                    self._discovery_blocked_guilds.add(gid)
-                    safe_name = self._format_name_for_guild(gid, count)  # uses fallback now
-                    try:
-                        await channel.edit(name=safe_name, reason=reason + " (discovery-safe fallback)")
-                        logging.info(
-                            f"Discovery-safe rename applied: '{safe_name}'."
-                        )
-                        audit_log(
-                            f"Discovery-safe rename applied to '{safe_name}' in guild '{channel.guild.name}' ({channel.guild.id})."
-                        )
-                        return
-                    except Exception as inner:
-                        logging.error(
-                            f"Failed applying discovery-safe rename in '{channel.guild.name}': {inner}",
-                            exc_info=True,
-                        )
-                # If already blocked or retry failed, re-raise original
-            raise
-        except discord.Forbidden:
-            logging.error(
-                f"Forbidden renaming channel #{channel.name} in '{channel.guild.name}'."
-            )
-            audit_log(
-                f"Forbidden renaming member count channel in guild '{channel.guild.name}' ({channel.guild.id})."
-            )
 
     async def _verify_or_adopt_for_guild(self, guild: discord.Guild):
         """
@@ -864,30 +731,13 @@ class MemberStats(commands.Cog):
             if self._fallback_name_regex.match(channel.name):
                 self._discovery_blocked_guilds.add(guild.id)
 
-            # Ensure overwrites and queue name verification
-            everyone = guild.default_role
-            current_overwrites = channel.overwrites_for(everyone)
-            if not (
-                current_overwrites.view_channel is True
-                and current_overwrites.connect is False
-                and current_overwrites.speak is False
-                and current_overwrites.stream is False
-            ):
-                try:
-                    await channel.set_permissions(
-                        target=everyone,
-                        view_channel=True,
-                        connect=False,
-                        speak=False,
-                        stream=False,
-                        reason="Verify lock at startup",
-                    )
-                except Exception as e:
-                    logging.warning(
-                        f"Failed to enforce overwrites at startup in '{guild.name}': {e}"
-                    )
-
-            await self._queue_rename(guild, reason="Startup verify")
+            # Ensure overwrites and correct name
+            await self._place_and_lock(channel, self.stats_category_name)
+            await self._apply_rename(
+                channel,
+                self._current_member_count(guild, self.include_bots),
+                "Startup verify",
+            )
 
     # ---------------------------
     # Concurrency helper
@@ -903,12 +753,6 @@ class MemberStats(commands.Cog):
     def cog_unload(self):
         if self.periodic_refresh.is_running():
             self.periodic_refresh.cancel()
-        # Cancel any running rename workers
-        for task in list(self._rename_tasks.values()):
-            try:
-                task.cancel()
-            except Exception:
-                pass
 
 
 async def setup(bot: commands.Bot):

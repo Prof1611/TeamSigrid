@@ -77,12 +77,7 @@ member_count_include_bots: false
 # for guilds it has already configured during this runtime.
 member_count_auto_repair: true
 
-# How often (in minutes) the member count channel is refreshed automatically, regardless of member join/leave events.
-# This is the "scheduled check" interval.
+# How often (in minutes) the member count channel is refreshed automatically.
 # Minimum enforced by the cog is 5 minutes even if set lower.
 member_count_refresh_minutes: 30
 
-# Minimum time (in seconds) between renames triggered by member join/leave events.
-# This is separate from the scheduled refresh above, and prevents rapid renames during busy periods (avoiding Discord's rename rate limits and 429 errors).
-# Default is 300 seconds (5 minutes) if NOT specified here.
-member_count_min_rename_seconds: 300
