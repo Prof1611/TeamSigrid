@@ -98,43 +98,6 @@ async def on_ready():
         logging.error(f"Error syncing application commands: {e}")
         audit_log(f"Error syncing slash commands: {e}")
 
-
-@bot.event
-async def on_message(message):
-    """
-    Forwards direct messages to the specified channel in your config.
-    Ignores messages from the bot itself.
-    """
-    if message.author == bot.user:
-        return
-
-    # Check if this is a DM
-    if isinstance(message.channel, discord.DMChannel):
-        target_channel = bot.get_channel(dm_forward_channel_id)
-        if target_channel:
-            try:
-                embed = discord.Embed(
-                    title=f"Direct Message from '{message.author}'",
-                    description=message.content,
-                    color=discord.Color.green(),
-                )
-                await target_channel.send(embed=embed)
-                logging.info(
-                    f"DM from {message.author} forwarded to #{target_channel.name}"
-                )
-                audit_log(
-                    f"DM from {message.author} (ID: {message.author.id}) forwarded to channel #{target_channel.name} (ID: {target_channel.id})."
-                )
-            except discord.HTTPException as e:
-                logging.error(f"Error forwarding DM: {e}")
-                audit_log(
-                    f"Error forwarding DM from {message.author} (ID: {message.author.id}): {e}"
-                )
-        else:
-            logging.error("Target channel not found for DM forwarding.")
-            audit_log("Failed to forward DM: target channel not found.")
-
-
 # Load all cogs
 async def load_cogs():
     """Loads all .py files in the 'cogs' folder as extensions."""
