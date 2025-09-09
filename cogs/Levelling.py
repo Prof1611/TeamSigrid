@@ -15,6 +15,7 @@ from datetime import datetime
 # Utilities
 # ======================================================================================
 
+
 def audit_log(message: str):
     """Append a timestamped message to the audit log file."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -117,6 +118,7 @@ _db_lock = asyncio.Lock()
 # Core maths for level curves
 # ======================================================================================
 
+
 def xp_required_for_level(curve: str, base_xp: int, a: int, b: int, level: int) -> int:
     """
     Return the cumulative XP required to reach a given level.
@@ -138,7 +140,7 @@ def xp_required_for_level(curve: str, base_xp: int, a: int, b: int, level: int) 
         xp = base_xp * (math.pow(1.15, level) - 1.0)
     else:
         # quadratic default
-        xp = base_xp * (level ** 2) + a * level + b
+        xp = base_xp * (level**2) + a * level + b
     return int(round(max(0, xp)))
 
 
@@ -167,7 +169,9 @@ def level_from_total_xp(curve: str, base_xp: int, a: int, b: int, total_xp: int)
 
 def xp_between_levels(curve: str, base_xp: int, a: int, b: int, level: int) -> int:
     """Return the XP needed to advance from level to level+1."""
-    needed = xp_required_for_level(curve, base_xp, a, b, level + 1) - xp_required_for_level(curve, base_xp, a, b, level)
+    needed = xp_required_for_level(
+        curve, base_xp, a, b, level + 1
+    ) - xp_required_for_level(curve, base_xp, a, b, level)
     return max(1, needed)
 
 
@@ -321,12 +325,18 @@ async def add_xp_and_check_level_up(
                 continue
             try:
                 if role not in member.roles:
-                    await member.add_roles(role, reason=f"Level reward at level {level_at}")
+                    await member.add_roles(
+                        role, reason=f"Level reward at level {level_at}"
+                    )
                     awarded.append((level_at, role_id))
             except discord.Forbidden:
-                audit_log(f"Missing permissions to assign role {role_id} in guild {guild.id}")
+                audit_log(
+                    f"Missing permissions to assign role {role_id} in guild {guild.id}"
+                )
             except discord.HTTPException as e:
-                audit_log(f"HTTP error assigning role {role_id} in guild {guild.id}: {e}")
+                audit_log(
+                    f"HTTP error assigning role {role_id} in guild {guild.id}: {e}"
+                )
 
     return new_total, new_level, awarded
 
@@ -473,6 +483,7 @@ async def user_rank(guild_id: int, user_id: int) -> int:
 # UI helpers
 # ======================================================================================
 
+
 def bool_emoji(value: bool) -> str:
     return "✅" if value else "❌"
 
@@ -499,13 +510,17 @@ class LeaderboardView(discord.ui.View):
             for i, r in enumerate(rows, start=1 + start):
                 member = self.guild.get_member(int(r["user_id"]))
                 name = member.mention if member else f"<@{int(r['user_id'])}>"
-                lines.append(f"**{i}.** {name} - XP: `{r['xp']}` - Level: `{r['level']}`")
+                lines.append(
+                    f"**{i}.** {name} - XP: `{r['xp']}` - Level: `{r['level']}`"
+                )
             embed.description = "\n".join(lines)
 
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary)
-    async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def previous(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
         if self.page > 0:
             self.page -= 1
         await self._render(interaction)
@@ -524,6 +539,7 @@ class LeaderboardView(discord.ui.View):
 # ======================================================================================
 # The Cog
 # ======================================================================================
+
 
 class LevelSystem(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -646,7 +662,9 @@ class LevelSystem(commands.Cog):
                             for lvl, rid in awarded:
                                 role = message.guild.get_role(rid)
                                 if role:
-                                    role_lines.append(f"Level {lvl} reward: {role.mention}")
+                                    role_lines.append(
+                                        f"Level {lvl} reward: {role.mention}"
+                                    )
                             if role_lines:
                                 embed.add_field(
                                     name="Rewards",
@@ -655,7 +673,9 @@ class LevelSystem(commands.Cog):
                                 )
                         await announce_channel.send(embed=embed)
                     except discord.Forbidden:
-                        audit_log(f"Cannot announce level up in #{message.channel.id} for guild {message.guild.id}")
+                        audit_log(
+                            f"Cannot announce level up in #{message.channel.id} for guild {message.guild.id}"
+                        )
                     except Exception as e:
                         logging.warning(f"Level up announce failed: {e}")
                         audit_log(f"Level up announce failed: {e}")
@@ -674,12 +694,18 @@ class LevelSystem(commands.Cog):
 
     group = app_commands.Group(name="level", description="Levelling system commands")
 
-    @group.command(name="profile", description="Show your level profile or another member's.")
+    @group.command(
+        name="profile", description="Show your level profile or another member's."
+    )
     @app_commands.describe(member="Member to view, leave empty for yourself")
-    async def profile(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    async def profile(
+        self, interaction: discord.Interaction, member: Optional[discord.Member] = None
+    ):
         try:
             if not interaction.guild:
-                return await interaction.response.send_message("This can only be used in a server.", ephemeral=True)
+                return await interaction.response.send_message(
+                    "This can only be used in a server.", ephemeral=True
+                )
             target = member or interaction.user
             record = await get_user_record(interaction.guild.id, target.id)
             settings = await get_settings(interaction.guild.id)
@@ -712,22 +738,32 @@ class LevelSystem(commands.Cog):
             embed.add_field(name="Level", value=str(level_val))
             embed.add_field(name="Rank", value=f"#{rank}")
             embed.add_field(name="Total XP", value=str(total))
-            embed.add_field(name="Progress", value=f"{progress}/{to_next} XP", inline=False)
+            embed.add_field(
+                name="Progress", value=f"{progress}/{to_next} XP", inline=False
+            )
             embed.set_thumbnail(url=target.display_avatar.url)
             await interaction.response.send_message(embed=embed, ephemeral=False)
-            audit_log(f"{interaction.user} checked profile for {target} in {interaction.guild.name}")
+            audit_log(
+                f"{interaction.user} checked profile for {target} in {interaction.guild.name}"
+            )
         except Exception as e:
             logging.error(f"/level profile failed: {e}")
             try:
-                await interaction.response.send_message("Failed to fetch profile.", ephemeral=True)
+                await interaction.response.send_message(
+                    "Failed to fetch profile.", ephemeral=True
+                )
             except discord.InteractionResponded:
-                await interaction.followup.send("Failed to fetch profile.", ephemeral=True)
+                await interaction.followup.send(
+                    "Failed to fetch profile.", ephemeral=True
+                )
 
     @group.command(name="leaderboard", description="Show the server leaderboard.")
     async def leaderboard(self, interaction: discord.Interaction):
         try:
             if not interaction.guild:
-                return await interaction.response.send_message("This can only be used in a server.", ephemeral=True)
+                return await interaction.response.send_message(
+                    "This can only be used in a server.", ephemeral=True
+                )
             view = LeaderboardView(self, interaction.guild, per_page=10)
             # Initial render
             rows = await top_users(interaction.guild.id, 10, 0)
@@ -742,21 +778,29 @@ class LevelSystem(commands.Cog):
                 for i, r in enumerate(rows, start=1):
                     member = interaction.guild.get_member(int(r["user_id"]))
                     name = member.mention if member else f"<@{int(r['user_id'])}>"
-                    lines.append(f"**{i}.** {name} - XP: `{r['xp']}` - Level: `{r['level']}`")
+                    lines.append(
+                        f"**{i}.** {name} - XP: `{r['xp']}` - Level: `{r['level']}`"
+                    )
                 embed.description = "\n".join(lines)
             await interaction.response.send_message(embed=embed, view=view)
         except Exception as e:
             logging.error(f"/level leaderboard failed: {e}")
             try:
-                await interaction.response.send_message("Failed to fetch leaderboard.", ephemeral=True)
+                await interaction.response.send_message(
+                    "Failed to fetch leaderboard.", ephemeral=True
+                )
             except discord.InteractionResponded:
-                await interaction.followup.send("Failed to fetch leaderboard.", ephemeral=True)
+                await interaction.followup.send(
+                    "Failed to fetch leaderboard.", ephemeral=True
+                )
 
     # ==============================================================================
     # Admin and config commands
     # ==============================================================================
 
-    config = app_commands.Group(name="levelconfig", description="Configure server levelling")
+    config = app_commands.Group(
+        name="levelconfig", description="Configure server levelling"
+    )
 
     # ----- helpers -----
     @staticmethod
@@ -773,7 +817,9 @@ class LevelSystem(commands.Cog):
     @app_commands.checks.has_permissions(manage_guild=True)
     async def cfg_show(self, interaction: discord.Interaction):
         if not interaction.guild:
-            return await interaction.response.send_message("Server only.", ephemeral=True)
+            return await interaction.response.send_message(
+                "Server only.", ephemeral=True
+            )
         s = await get_settings(interaction.guild.id)
         ignored = await list_ignored_channels(interaction.guild.id)
         bl_roles = await list_blacklisted_roles(interaction.guild.id)
@@ -786,12 +832,10 @@ class LevelSystem(commands.Cog):
             role_mentions.append(role.mention if role else f"`{rid}`")
         role_mentions = role_mentions or ["None"]
 
-        reward_lines = []
-        for r in rewards:
-            level = int(r["level"])
-            role = interaction.guild.get_role(int(r["role_id"]))
-            reward_lines.append(f"Level {level} → {role.mention if role else f'`{int(r['role_id'])}`'}")
-        reward_lines = reward_lines or ["None"]
+        role_id = int(r["role_id"])
+        reward_lines.append(
+            f"Level {level} → {role.mention if role else f'`{role_id}`'}"
+        )
 
         announce_ch = None
         if s["announce_channel_id"]:
@@ -817,179 +861,343 @@ class LevelSystem(commands.Cog):
 
     # ----- core numeric settings -----
     @config.command(name="setrange", description="Set random XP range per message.")
-    @app_commands.describe(xp_min="Minimum XP per message", xp_max="Maximum XP per message")
+    @app_commands.describe(
+        xp_min="Minimum XP per message", xp_max="Maximum XP per message"
+    )
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_setrange(self, interaction: discord.Interaction, xp_min: app_commands.Range[int, 0, 100000], xp_max: app_commands.Range[int, 1, 100000]):
+    async def cfg_setrange(
+        self,
+        interaction: discord.Interaction,
+        xp_min: app_commands.Range[int, 0, 100000],
+        xp_max: app_commands.Range[int, 1, 100000],
+    ):
         if xp_max < xp_min:
-            return await interaction.response.send_message("xp_max must be greater than or equal to xp_min.", ephemeral=True)
-        await update_settings(interaction.guild.id, xp_min=int(xp_min), xp_max=int(xp_max))
-        await interaction.response.send_message(f"XP range set to {xp_min}-{xp_max}.", ephemeral=True)
+            return await interaction.response.send_message(
+                "xp_max must be greater than or equal to xp_min.", ephemeral=True
+            )
+        await update_settings(
+            interaction.guild.id, xp_min=int(xp_min), xp_max=int(xp_max)
+        )
+        await interaction.response.send_message(
+            f"XP range set to {xp_min}-{xp_max}.", ephemeral=True
+        )
 
-    @config.command(name="setcooldown", description="Set seconds between XP awards per user.")
+    @config.command(
+        name="setcooldown", description="Set seconds between XP awards per user."
+    )
     @app_commands.describe(seconds="Cooldown in seconds")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_setcooldown(self, interaction: discord.Interaction, seconds: app_commands.Range[int, 0, 86400]):
+    async def cfg_setcooldown(
+        self,
+        interaction: discord.Interaction,
+        seconds: app_commands.Range[int, 0, 86400],
+    ):
         await update_settings(interaction.guild.id, cooldown_seconds=int(seconds))
-        await interaction.response.send_message(f"Cooldown set to {seconds} seconds.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Cooldown set to {seconds} seconds.", ephemeral=True
+        )
 
     @config.command(name="setmultiplier", description="Set global XP multiplier.")
     @app_commands.describe(multiplier="Global multiplier. 1.0 for default.")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_setmultiplier(self, interaction: discord.Interaction, multiplier: app_commands.Range[float, 0.0, 100.0]):
+    async def cfg_setmultiplier(
+        self,
+        interaction: discord.Interaction,
+        multiplier: app_commands.Range[float, 0.0, 100.0],
+    ):
         await update_settings(interaction.guild.id, multiplier=float(multiplier))
-        await interaction.response.send_message(f"Global multiplier set to {multiplier}.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Global multiplier set to {multiplier}.", ephemeral=True
+        )
 
-    @config.command(name="setminchars", description="Set minimum characters required to earn XP.")
+    @config.command(
+        name="setminchars", description="Set minimum characters required to earn XP."
+    )
     @app_commands.describe(min_chars="Minimum characters")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_setminchars(self, interaction: discord.Interaction, min_chars: app_commands.Range[int, 0, 4000]):
+    async def cfg_setminchars(
+        self,
+        interaction: discord.Interaction,
+        min_chars: app_commands.Range[int, 0, 4000],
+    ):
         await update_settings(interaction.guild.id, min_chars=int(min_chars))
-        await interaction.response.send_message(f"Minimum characters set to {min_chars}.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Minimum characters set to {min_chars}.", ephemeral=True
+        )
 
-    @config.command(name="setbonuses", description="Set bonus XP values for attachments and mentions.")
-    @app_commands.describe(attachments_bonus="XP per attachment", mentions_bonus="XP per mention")
+    @config.command(
+        name="setbonuses",
+        description="Set bonus XP values for attachments and mentions.",
+    )
+    @app_commands.describe(
+        attachments_bonus="XP per attachment", mentions_bonus="XP per mention"
+    )
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_setbonuses(self, interaction: discord.Interaction, attachments_bonus: app_commands.Range[int, 0, 100000], mentions_bonus: app_commands.Range[int, 0, 100000]):
-        await update_settings(interaction.guild.id, attachments_bonus=int(attachments_bonus), mentions_bonus=int(mentions_bonus))
-        await interaction.response.send_message(f"Bonuses updated. Attachments: {attachments_bonus}, Mentions: {mentions_bonus}.", ephemeral=True)
+    async def cfg_setbonuses(
+        self,
+        interaction: discord.Interaction,
+        attachments_bonus: app_commands.Range[int, 0, 100000],
+        mentions_bonus: app_commands.Range[int, 0, 100000],
+    ):
+        await update_settings(
+            interaction.guild.id,
+            attachments_bonus=int(attachments_bonus),
+            mentions_bonus=int(mentions_bonus),
+        )
+        await interaction.response.send_message(
+            f"Bonuses updated. Attachments: {attachments_bonus}, Mentions: {mentions_bonus}.",
+            ephemeral=True,
+        )
 
-    @config.command(name="setthreadsmult", description="Set XP multiplier for messages in threads.")
+    @config.command(
+        name="setthreadsmult", description="Set XP multiplier for messages in threads."
+    )
     @app_commands.describe(threads_multiplier="Multiplier for thread channels")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_setthreadsmult(self, interaction: discord.Interaction, threads_multiplier: app_commands.Range[float, 0.0, 100.0]):
-        await update_settings(interaction.guild.id, threads_multiplier=float(threads_multiplier))
-        await interaction.response.send_message(f"Threads multiplier set to {threads_multiplier}.", ephemeral=True)
+    async def cfg_setthreadsmult(
+        self,
+        interaction: discord.Interaction,
+        threads_multiplier: app_commands.Range[float, 0.0, 100.0],
+    ):
+        await update_settings(
+            interaction.guild.id, threads_multiplier=float(threads_multiplier)
+        )
+        await interaction.response.send_message(
+            f"Threads multiplier set to {threads_multiplier}.", ephemeral=True
+        )
 
     @config.command(name="ignorebots", description="Toggle ignoring bot messages.")
     @app_commands.describe(enabled="True to ignore bot messages")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def cfg_ignorebots(self, interaction: discord.Interaction, enabled: bool):
         await update_settings(interaction.guild.id, ignore_bots=1 if enabled else 0)
-        await interaction.response.send_message(f"Ignore bots set to {enabled}.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Ignore bots set to {enabled}.", ephemeral=True
+        )
 
     # ----- curve settings -----
-    @config.command(name="setcurve", description="Set the XP curve type and parameters.")
+    @config.command(
+        name="setcurve", description="Set the XP curve type and parameters."
+    )
     @app_commands.describe(
         curve_type="linear, quadratic, or exponential",
         base_xp="Base XP factor",
         curve_a="Curve parameter a",
-        curve_b="Curve parameter b"
+        curve_b="Curve parameter b",
     )
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_setcurve(self, interaction: discord.Interaction, curve_type: str, base_xp: app_commands.Range[int, 1, 1000000], curve_a: int = 50, curve_b: int = 0):
+    async def cfg_setcurve(
+        self,
+        interaction: discord.Interaction,
+        curve_type: str,
+        base_xp: app_commands.Range[int, 1, 1000000],
+        curve_a: int = 50,
+        curve_b: int = 0,
+    ):
         ct = self._curve_name(curve_type)
-        await update_settings(interaction.guild.id, curve_type=ct, base_xp=int(base_xp), curve_a=int(curve_a), curve_b=int(curve_b))
-        await interaction.response.send_message(f"Curve set to {ct}. base_xp={base_xp}, a={curve_a}, b={curve_b}.", ephemeral=True)
+        await update_settings(
+            interaction.guild.id,
+            curve_type=ct,
+            base_xp=int(base_xp),
+            curve_a=int(curve_a),
+            curve_b=int(curve_b),
+        )
+        await interaction.response.send_message(
+            f"Curve set to {ct}. base_xp={base_xp}, a={curve_a}, b={curve_b}.",
+            ephemeral=True,
+        )
 
     # ----- announcements -----
-    @config.command(name="announce", description="Enable or disable level up announcements.")
+    @config.command(
+        name="announce", description="Enable or disable level up announcements."
+    )
     @app_commands.describe(enabled="True to announce level ups")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def cfg_announce(self, interaction: discord.Interaction, enabled: bool):
-        await update_settings(interaction.guild.id, announce_level_up=1 if enabled else 0)
-        await interaction.response.send_message(f"Level up announcements set to {enabled}.", ephemeral=True)
+        await update_settings(
+            interaction.guild.id, announce_level_up=1 if enabled else 0
+        )
+        await interaction.response.send_message(
+            f"Level up announcements set to {enabled}.", ephemeral=True
+        )
 
-    @config.command(name="announcechannel", description="Set a channel for level up announcements, or clear to use the current channel.")
-    @app_commands.describe(channel="Channel to post announcements in, leave empty to clear")
+    @config.command(
+        name="announcechannel",
+        description="Set a channel for level up announcements, or clear to use the current channel.",
+    )
+    @app_commands.describe(
+        channel="Channel to post announcements in, leave empty to clear"
+    )
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_announcechannel(self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
+    async def cfg_announcechannel(
+        self,
+        interaction: discord.Interaction,
+        channel: Optional[discord.TextChannel] = None,
+    ):
         ch_id = channel.id if channel else None
         await update_settings(interaction.guild.id, announce_channel_id=ch_id)
         if channel:
-            await interaction.response.send_message(f"Announcements will be posted in {channel.mention}.", ephemeral=True)
+            await interaction.response.send_message(
+                f"Announcements will be posted in {channel.mention}.", ephemeral=True
+            )
         else:
-            await interaction.response.send_message("Announcement channel cleared. Will post in the same channel as the level up event.", ephemeral=True)
+            await interaction.response.send_message(
+                "Announcement channel cleared. Will post in the same channel as the level up event.",
+                ephemeral=True,
+            )
 
     # ----- ignored channels -----
     @config.command(name="ignoreadd", description="Add a channel to the ignore list.")
     @app_commands.describe(channel="Channel that will not award XP")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_ignoreadd(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
+    async def cfg_ignoreadd(
+        self, interaction: discord.Interaction, channel: discord.abc.GuildChannel
+    ):
         await add_ignored_channel(interaction.guild.id, channel.id)
-        await interaction.response.send_message(f"Added {channel.mention} to ignored channels.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Added {channel.mention} to ignored channels.", ephemeral=True
+        )
 
-    @config.command(name="ignoreremove", description="Remove a channel from the ignore list.")
+    @config.command(
+        name="ignoreremove", description="Remove a channel from the ignore list."
+    )
     @app_commands.describe(channel="Channel to remove from ignore list")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_ignoreremove(self, interaction: discord.Interaction, channel: discord.abc.GuildChannel):
+    async def cfg_ignoreremove(
+        self, interaction: discord.Interaction, channel: discord.abc.GuildChannel
+    ):
         await remove_ignored_channel(interaction.guild.id, channel.id)
-        await interaction.response.send_message(f"Removed {channel.mention} from ignored channels.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Removed {channel.mention} from ignored channels.", ephemeral=True
+        )
 
     @config.command(name="ignorelist", description="List ignored channels.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def cfg_ignorelist(self, interaction: discord.Interaction):
         ch_ids = await list_ignored_channels(interaction.guild.id)
         if not ch_ids:
-            return await interaction.response.send_message("No ignored channels.", ephemeral=True)
+            return await interaction.response.send_message(
+                "No ignored channels.", ephemeral=True
+            )
         mentions = []
         for cid in ch_ids:
             ch = interaction.guild.get_channel(cid)
             mentions.append(ch.mention if ch else f"`{cid}`")
-        await interaction.response.send_message("Ignored channels:\n" + ", ".join(mentions), ephemeral=True)
+        await interaction.response.send_message(
+            "Ignored channels:\n" + ", ".join(mentions), ephemeral=True
+        )
 
     # ----- blacklist roles -----
-    @config.command(name="blacklistadd", description="Add a role that will not earn XP.")
+    @config.command(
+        name="blacklistadd", description="Add a role that will not earn XP."
+    )
     @app_commands.describe(role="Role to blacklist")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_blacklistadd(self, interaction: discord.Interaction, role: discord.Role):
+    async def cfg_blacklistadd(
+        self, interaction: discord.Interaction, role: discord.Role
+    ):
         await add_blacklisted_role(interaction.guild.id, role.id)
-        await interaction.response.send_message(f"Added {role.mention} to blacklisted roles.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Added {role.mention} to blacklisted roles.", ephemeral=True
+        )
 
-    @config.command(name="blacklistremove", description="Remove a role from the blacklist.")
+    @config.command(
+        name="blacklistremove", description="Remove a role from the blacklist."
+    )
     @app_commands.describe(role="Role to remove from blacklist")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_blacklistremove(self, interaction: discord.Interaction, role: discord.Role):
+    async def cfg_blacklistremove(
+        self, interaction: discord.Interaction, role: discord.Role
+    ):
         await remove_blacklisted_role(interaction.guild.id, role.id)
-        await interaction.response.send_message(f"Removed {role.mention} from blacklisted roles.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Removed {role.mention} from blacklisted roles.", ephemeral=True
+        )
 
     @config.command(name="blacklistlist", description="List blacklisted roles.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def cfg_blacklistlist(self, interaction: discord.Interaction):
         roles = await list_blacklisted_roles(interaction.guild.id)
         if not roles:
-            return await interaction.response.send_message("No blacklisted roles.", ephemeral=True)
+            return await interaction.response.send_message(
+                "No blacklisted roles.", ephemeral=True
+            )
         mentions = []
         for rid in roles:
             r = interaction.guild.get_role(rid)
             mentions.append(r.mention if r else f"`{rid}`")
-        await interaction.response.send_message("Blacklisted roles:\n" + ", ".join(mentions), ephemeral=True)
+        await interaction.response.send_message(
+            "Blacklisted roles:\n" + ", ".join(mentions), ephemeral=True
+        )
 
     # ----- role rewards -----
-    @config.command(name="rewardset", description="Set a role reward at a specific level.")
-    @app_commands.describe(level="Level at which to award the role", role="Role to award")
+    @config.command(
+        name="rewardset", description="Set a role reward at a specific level."
+    )
+    @app_commands.describe(
+        level="Level at which to award the role", role="Role to award"
+    )
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_rewardset(self, interaction: discord.Interaction, level: app_commands.Range[int, 1, 100000], role: discord.Role):
+    async def cfg_rewardset(
+        self,
+        interaction: discord.Interaction,
+        level: app_commands.Range[int, 1, 100000],
+        role: discord.Role,
+    ):
         await set_role_reward(interaction.guild.id, int(level), role.id)
-        await interaction.response.send_message(f"Set reward for level {level} to {role.mention}.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Set reward for level {level} to {role.mention}.", ephemeral=True
+        )
 
-    @config.command(name="rewardremove", description="Remove a role reward at a specific level.")
+    @config.command(
+        name="rewardremove", description="Remove a role reward at a specific level."
+    )
     @app_commands.describe(level="Level to remove the reward from")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_rewardremove(self, interaction: discord.Interaction, level: app_commands.Range[int, 1, 100000]):
+    async def cfg_rewardremove(
+        self,
+        interaction: discord.Interaction,
+        level: app_commands.Range[int, 1, 100000],
+    ):
         await remove_role_reward(interaction.guild.id, int(level))
-        await interaction.response.send_message(f"Removed reward for level {level}.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Removed reward for level {level}.", ephemeral=True
+        )
 
     @config.command(name="rewardlist", description="List all role rewards.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def cfg_rewardlist(self, interaction: discord.Interaction):
         rows = await list_role_rewards(interaction.guild.id)
         if not rows:
-            return await interaction.response.send_message("No role rewards set.", ephemeral=True)
+            return await interaction.response.send_message(
+                "No role rewards set.", ephemeral=True
+            )
         lines = []
         for r in rows:
             lvl = int(r["level"])
             role = interaction.guild.get_role(int(r["role_id"]))
-            lines.append(f"Level {lvl} → {role.mention if role else f'`{int(r['role_id'])}`'}")
-        await interaction.response.send_message("Role rewards:\n" + "\n".join(lines), ephemeral=True)
+            lines.append(
+                f"Level {lvl} → {role.mention if role else f'`{int(r['role_id'])}`'}"
+            )
+        await interaction.response.send_message(
+            "Role rewards:\n" + "\n".join(lines), ephemeral=True
+        )
 
     # ----- user management -----
     @config.command(name="addxp", description="Add XP to a user.")
     @app_commands.describe(member="Member to modify", amount="Amount of XP to add")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_addxp(self, interaction: discord.Interaction, member: discord.Member, amount: app_commands.Range[int, -1000000, 1000000]):
+    async def cfg_addxp(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        amount: app_commands.Range[int, -1000000, 1000000],
+    ):
         # Negative amount allowed to deduct XP, will clamp at zero via add function logic
         settings = await get_settings(interaction.guild.id)
-        new_total, new_level, awarded = await add_xp_and_check_level_up(interaction.guild, member, int(amount))
+        new_total, new_level, awarded = await add_xp_and_check_level_up(
+            interaction.guild, member, int(amount)
+        )
         msg = f"Gave {amount} XP to {member.mention}. Total XP now {new_total}, level {new_level}."
         if awarded:
             names = []
@@ -1001,40 +1209,74 @@ class LevelSystem(commands.Cog):
                 msg += "\nRewards granted:\n" + "\n".join(names)
         await interaction.response.send_message(msg, ephemeral=True)
 
-    @config.command(name="setlevel", description="Set a user's level directly. XP will be set to the minimum for that level.")
+    @config.command(
+        name="setlevel",
+        description="Set a user's level directly. XP will be set to the minimum for that level.",
+    )
     @app_commands.describe(member="Member to modify", level_value="Level to set")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_setlevel(self, interaction: discord.Interaction, member: discord.Member, level_value: app_commands.Range[int, 0, 100000]):
+    async def cfg_setlevel(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        level_value: app_commands.Range[int, 0, 100000],
+    ):
         s = await get_settings(interaction.guild.id)
         # Set XP to exact requirement for that level
-        req = xp_required_for_level(s["curve_type"], int(s["base_xp"]), int(s["curve_a"]), int(s["curve_b"]), int(level_value))
+        req = xp_required_for_level(
+            s["curve_type"],
+            int(s["base_xp"]),
+            int(s["curve_a"]),
+            int(s["curve_b"]),
+            int(level_value),
+        )
         async with _db_lock:
             cursor.execute(
                 "INSERT INTO user_xp(guild_id, user_id, xp, level, last_message_ts) VALUES (?, ?, ?, ?, COALESCE((SELECT last_message_ts FROM user_xp WHERE guild_id=? AND user_id=?), 0)) "
                 "ON CONFLICT(guild_id, user_id) DO UPDATE SET xp=excluded.xp, level=excluded.level",
-                (interaction.guild.id, member.id, int(req), int(level_value), interaction.guild.id, member.id),
+                (
+                    interaction.guild.id,
+                    member.id,
+                    int(req),
+                    int(level_value),
+                    interaction.guild.id,
+                    member.id,
+                ),
             )
             conn.commit()
-        await interaction.response.send_message(f"Set {member.mention} to level {level_value} with XP {req}.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Set {member.mention} to level {level_value} with XP {req}.",
+            ephemeral=True,
+        )
 
     @config.command(name="resetuser", description="Reset a user's XP and level.")
     @app_commands.describe(member="Member to reset")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_resetuser(self, interaction: discord.Interaction, member: discord.Member):
+    async def cfg_resetuser(
+        self, interaction: discord.Interaction, member: discord.Member
+    ):
         async with _db_lock:
             cursor.execute(
                 "UPDATE user_xp SET xp = 0, level = 0 WHERE guild_id = ? AND user_id = ?",
                 (interaction.guild.id, member.id),
             )
             conn.commit()
-        await interaction.response.send_message(f"Reset {member.mention}'s XP and level.", ephemeral=True)
+        await interaction.response.send_message(
+            f"Reset {member.mention}'s XP and level.", ephemeral=True
+        )
 
-    @config.command(name="wipeguild", description="Wipe all levelling data for this server.")
+    @config.command(
+        name="wipeguild", description="Wipe all levelling data for this server."
+    )
     @app_commands.describe(confirm="You must set this to True to proceed")
     @app_commands.checks.has_permissions(administrator=True)
-    async def cfg_wipeguild(self, interaction: discord.Interaction, confirm: bool = False):
+    async def cfg_wipeguild(
+        self, interaction: discord.Interaction, confirm: bool = False
+    ):
         if not confirm:
-            return await interaction.response.send_message("You must confirm by setting confirm=True.", ephemeral=True)
+            return await interaction.response.send_message(
+                "You must confirm by setting confirm=True.", ephemeral=True
+            )
         gid = interaction.guild.id
         async with _db_lock:
             cursor.execute("DELETE FROM user_xp WHERE guild_id = ?", (gid,))
@@ -1043,21 +1285,41 @@ class LevelSystem(commands.Cog):
             cursor.execute("DELETE FROM role_rewards WHERE guild_id = ?", (gid,))
             cursor.execute("DELETE FROM guild_settings WHERE guild_id = ?", (gid,))
             conn.commit()
-        await interaction.response.send_message("All levelling data wiped for this server. Defaults will be recreated on next use.", ephemeral=True)
+        await interaction.response.send_message(
+            "All levelling data wiped for this server. Defaults will be recreated on next use.",
+            ephemeral=True,
+        )
 
     # ----- simulate preview numbers -----
-    @config.command(name="simulate", description="Simulate XP required for a range of levels with current curve.")
+    @config.command(
+        name="simulate",
+        description="Simulate XP required for a range of levels with current curve.",
+    )
     @app_commands.describe(levels="Show requirements up to this level, inclusive")
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_simulate(self, interaction: discord.Interaction, levels: app_commands.Range[int, 1, 200]):
+    async def cfg_simulate(
+        self, interaction: discord.Interaction, levels: app_commands.Range[int, 1, 200]
+    ):
         s = await get_settings(interaction.guild.id)
         lines = []
         for lvl in range(0, int(levels) + 1):
-            req = xp_required_for_level(s["curve_type"], int(s["base_xp"]), int(s["curve_a"]), int(s["curve_b"]), lvl)
+            req = xp_required_for_level(
+                s["curve_type"],
+                int(s["base_xp"]),
+                int(s["curve_a"]),
+                int(s["curve_b"]),
+                lvl,
+            )
             if lvl == 0:
                 lines.append(f"Level {lvl}: {req} XP (start)")
             else:
-                step = xp_between_levels(s["curve_type"], int(s["base_xp"]), int(s["curve_a"]), int(s["curve_b"]), lvl - 1)
+                step = xp_between_levels(
+                    s["curve_type"],
+                    int(s["base_xp"]),
+                    int(s["curve_a"]),
+                    int(s["curve_b"]),
+                    lvl - 1,
+                )
                 lines.append(f"Level {lvl}: {req} XP total (+{step} from {lvl-1})")
         chunks = []
         chunk = []
@@ -1076,18 +1338,28 @@ class LevelSystem(commands.Cog):
         for idx, part in enumerate(chunks):
             if idx == 0 and not interaction.response.is_done():
                 try:
-                    await interaction.response.send_message(f"Curve: **{s['curve_type']}**\n```text\n{part}\n```", ephemeral=True)
+                    await interaction.response.send_message(
+                        f"Curve: **{s['curve_type']}**\n```text\n{part}\n```",
+                        ephemeral=True,
+                    )
                 except discord.InteractionResponded:
-                    await interaction.followup.send(f"Curve: **{s['curve_type']}**\n```text\n{part}\n```", ephemeral=True)
+                    await interaction.followup.send(
+                        f"Curve: **{s['curve_type']}**\n```text\n{part}\n```",
+                        ephemeral=True,
+                    )
             else:
                 await interaction.followup.send(f"```text\n{part}\n```", ephemeral=True)
 
     # Context menu to view profile
     @app_commands.context_menu(name="View Level Profile")
-    async def context_profile(self, interaction: discord.Interaction, member: discord.Member):
+    async def context_profile(
+        self, interaction: discord.Interaction, member: discord.Member
+    ):
         try:
             if not interaction.guild:
-                return await interaction.response.send_message("This can only be used in a server.", ephemeral=True)
+                return await interaction.response.send_message(
+                    "This can only be used in a server.", ephemeral=True
+                )
             record = await get_user_record(interaction.guild.id, member.id)
             settings = await get_settings(interaction.guild.id)
             total = int(record["xp"])
@@ -1117,15 +1389,21 @@ class LevelSystem(commands.Cog):
             embed.add_field(name="Level", value=str(level_val))
             embed.add_field(name="Rank", value=f"#{rank}")
             embed.add_field(name="Total XP", value=str(total))
-            embed.add_field(name="Progress", value=f"{progress}/{to_next} XP", inline=False)
+            embed.add_field(
+                name="Progress", value=f"{progress}/{to_next} XP", inline=False
+            )
             embed.set_thumbnail(url=member.display_avatar.url)
             await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
             logging.error(f"context profile failed: {e}")
             try:
-                await interaction.response.send_message("Failed to fetch profile.", ephemeral=True)
+                await interaction.response.send_message(
+                    "Failed to fetch profile.", ephemeral=True
+                )
             except discord.InteractionResponded:
-                await interaction.followup.send("Failed to fetch profile.", ephemeral=True)
+                await interaction.followup.send(
+                    "Failed to fetch profile.", ephemeral=True
+                )
 
 
 async def setup(bot: commands.Bot):
