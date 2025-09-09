@@ -832,10 +832,17 @@ class LevelSystem(commands.Cog):
             role_mentions.append(role.mention if role else f"`{rid}`")
         role_mentions = role_mentions or ["None"]
 
-        role_id = int(r["role_id"])
-        reward_lines.append(
-            f"Level {level} → {role.mention if role else f'`{role_id}`'}"
-        )
+        # Build reward lines safely
+        reward_lines: List[str] = []
+        for r in rewards:
+            level = int(r["level"])
+            role_id = int(r["role_id"])
+            role = interaction.guild.get_role(role_id)
+            if role:
+                reward_lines.append(f"Level {level} → {role.mention}")
+            else:
+                reward_lines.append(f"Level {level} → `{role_id}`")
+        reward_lines = reward_lines or ["None"]
 
         announce_ch = None
         if s["announce_channel_id"]:
@@ -1172,13 +1179,17 @@ class LevelSystem(commands.Cog):
             return await interaction.response.send_message(
                 "No role rewards set.", ephemeral=True
             )
-        lines = []
+        lines: List[str] = []
         for r in rows:
             lvl = int(r["level"])
-            role = interaction.guild.get_role(int(r["role_id"]))
-            lines.append(
-                f"Level {lvl} → {role.mention if role else f'`{int(r['role_id'])}`'}"
-            )
+            role_id = int(r["role_id"])
+            role = interaction.guild.get_role(role_id)
+            # keep this version safe and readable
+            if role:
+                lines.append(f"Level {lvl} → {role.mention}")
+            else:
+                lines.append(f"Level {lvl} → `{role_id}`")
+
         await interaction.response.send_message(
             "Role rewards:\n" + "\n".join(lines), ephemeral=True
         )
