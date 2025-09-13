@@ -204,37 +204,41 @@ async def get_settings(guild_id: int) -> Dict[str, Any]:
             "SELECT * FROM guild_settings WHERE guild_id = ?",
             (guild_id,),
         ).fetchone()
-        if row:
-            return dict(row)
-        # Insert defaults if not present
-        cursor.execute(
-            """
-            INSERT INTO guild_settings (guild_id, xp_min, xp_max, cooldown_seconds, multiplier, min_chars,
-                                        attachments_bonus, mentions_bonus, threads_multiplier, ignore_bots,
-                                        curve_type, base_xp, curve_a, curve_b, announce_level_up, announce_channel_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                guild_id,
-                DEFAULT_SETTINGS["xp_min"],
-                DEFAULT_SETTINGS["xp_max"],
-                DEFAULT_SETTINGS["cooldown_seconds"],
-                DEFAULT_SETTINGS["multiplier"],
-                DEFAULT_SETTINGS["min_chars"],
-                DEFAULT_SETTINGS["attachments_bonus"],
-                DEFAULT_SETTINGS["mentions_bonus"],
-                DEFAULT_SETTINGS["threads_multiplier"],
-                DEFAULT_SETTINGS["ignore_bots"],
-                DEFAULT_SETTINGS["curve_type"],
-                DEFAULT_SETTINGS["base_xp"],
-                DEFAULT_SETTINGS["curve_a"],
-                DEFAULT_SETTINGS["curve_b"],
-                DEFAULT_SETTINGS["announce_level_up"],
-                DEFAULT_SETTINGS["announce_channel_id"],
-            ),
-        )
-        conn.commit()
-        return await get_settings(guild_id)
+        if not row:
+            # Insert defaults if not present then fetch again
+            cursor.execute(
+                """
+                INSERT INTO guild_settings (
+                    guild_id, xp_min, xp_max, cooldown_seconds, multiplier, min_chars,
+                    attachments_bonus, mentions_bonus, threads_multiplier, ignore_bots,
+                    curve_type, base_xp, curve_a, curve_b, announce_level_up, announce_channel_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    guild_id,
+                    DEFAULT_SETTINGS["xp_min"],
+                    DEFAULT_SETTINGS["xp_max"],
+                    DEFAULT_SETTINGS["cooldown_seconds"],
+                    DEFAULT_SETTINGS["multiplier"],
+                    DEFAULT_SETTINGS["min_chars"],
+                    DEFAULT_SETTINGS["attachments_bonus"],
+                    DEFAULT_SETTINGS["mentions_bonus"],
+                    DEFAULT_SETTINGS["threads_multiplier"],
+                    DEFAULT_SETTINGS["ignore_bots"],
+                    DEFAULT_SETTINGS["curve_type"],
+                    DEFAULT_SETTINGS["base_xp"],
+                    DEFAULT_SETTINGS["curve_a"],
+                    DEFAULT_SETTINGS["curve_b"],
+                    DEFAULT_SETTINGS["announce_level_up"],
+                    DEFAULT_SETTINGS["announce_channel_id"],
+                ),
+            )
+            conn.commit()
+            row = cursor.execute(
+                "SELECT * FROM guild_settings WHERE guild_id = ?",
+                (guild_id,),
+            ).fetchone()
+        return dict(row)
 
 
 async def update_settings(guild_id: int, **fields):
@@ -260,14 +264,17 @@ async def get_user_record(guild_id: int, user_id: int) -> sqlite3.Row:
             "SELECT * FROM user_xp WHERE guild_id = ? AND user_id = ?",
             (guild_id, user_id),
         ).fetchone()
-        if row:
-            return row
-        cursor.execute(
-            "INSERT INTO user_xp (guild_id, user_id, xp, level, last_message_ts) VALUES (?, ?, 0, 0, 0)",
-            (guild_id, user_id),
-        )
-        conn.commit()
-        return await get_user_record(guild_id, user_id)
+        if not row:
+            cursor.execute(
+                "INSERT INTO user_xp (guild_id, user_id, xp, level, last_message_ts) VALUES (?, ?, 0, 0, 0)",
+                (guild_id, user_id),
+            )
+            conn.commit()
+            row = cursor.execute(
+                "SELECT * FROM user_xp WHERE guild_id = ? AND user_id = ?",
+                (guild_id, user_id),
+            ).fetchone()
+        return row
 
 
 async def add_xp_and_check_level_up(
