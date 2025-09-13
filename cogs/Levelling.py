@@ -1158,10 +1158,17 @@ class LevelSystem(commands.Cog):
         level: app_commands.Range[int, 1, 100000],
         role: discord.Role,
     ):
-        await set_role_reward(interaction.guild.id, int(level), role.id)
-        await interaction.response.send_message(
-            f"Set reward for level {level} to {role.mention}.", ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await set_role_reward(interaction.guild.id, int(level), role.id)
+            await interaction.followup.send(
+                f"Set reward for level {level} to {role.mention}.", ephemeral=True
+            )
+        except Exception as e:
+            logging.error(f"rewardset failed: {e}")
+            await interaction.followup.send(
+                "Failed to set role reward.", ephemeral=True
+            )
 
     @config.command(
         name="rewardremove", description="Remove a role reward at a specific level."
@@ -1173,10 +1180,17 @@ class LevelSystem(commands.Cog):
         interaction: discord.Interaction,
         level: app_commands.Range[int, 1, 100000],
     ):
-        await remove_role_reward(interaction.guild.id, int(level))
-        await interaction.response.send_message(
-            f"Removed reward for level {level}.", ephemeral=True
-        )
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await remove_role_reward(interaction.guild.id, int(level))
+            await interaction.followup.send(
+                f"Removed reward for level {level}.", ephemeral=True
+            )
+        except Exception as e:
+            logging.error(f"rewardremove failed: {e}")
+            await interaction.followup.send(
+                "Failed to remove role reward.", ephemeral=True
+            )
 
     @config.command(name="rewardlist", description="List all role rewards.")
     @app_commands.checks.has_permissions(manage_guild=True)
