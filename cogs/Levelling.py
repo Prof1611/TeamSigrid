@@ -509,6 +509,79 @@ def format_progress_bar(progress: int, goal: int, length: int = 18) -> str:
     return bar
 
 
+def resolve_user_color(user: Optional[discord.abc.User]) -> discord.Color:
+    if isinstance(user, discord.Member) and user.color.value:
+        return user.color
+    return discord.Color.blurple()
+
+
+def create_standard_embed(
+    *,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    color: Optional[discord.Color] = None,
+    timestamp: Optional[datetime] = None,
+) -> discord.Embed:
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=color or discord.Color.blurple(),
+        timestamp=timestamp or discord.utils.utcnow(),
+    )
+    return embed
+
+
+def create_level_up_embed(
+    member: discord.abc.User,
+    level_val: int,
+    total_xp: int,
+    progress: int,
+    to_next: int,
+    rewards: Optional[List[str]] = None,
+    *,
+    timestamp: Optional[datetime] = None,
+) -> discord.Embed:
+    color = resolve_user_color(member)
+    embed = discord.Embed(
+        title=f"Level Up • Level {level_val}",
+        description=f"{member.mention} reached **Level {level_val}**!",
+        color=color,
+        timestamp=timestamp or discord.utils.utcnow(),
+    )
+
+    if getattr(member, "display_avatar", None):
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+    embed.add_field(name="Total XP", value=f"{total_xp:,}", inline=True)
+
+    remaining = max(0, to_next - progress)
+    embed.add_field(name="Next Level In", value=f"{remaining:,} XP", inline=True)
+
+    progress_goal = to_next if to_next > 0 else max(progress, 1)
+    progress_bar = format_progress_bar(progress, progress_goal)
+    if to_next > 0:
+        percent = min(100.0, max(0.0, (progress / to_next) * 100))
+        progress_text = f"{progress_bar}\n`{progress:,}/{to_next:,} XP` ({percent:.1f}%)"
+    else:
+        progress_text = f"{progress_bar}\n`{progress:,} XP` gained at this level"
+
+    embed.add_field(
+        name=f"Progress to Level {level_val + 1}",
+        value=progress_text,
+        inline=False,
+    )
+
+    if rewards:
+        embed.add_field(
+            name="Rewards Unlocked",
+            value="\n".join(rewards),
+            inline=False,
+        )
+
+    embed.set_footer(text="Keep chatting to earn more XP!")
+    return embed
+
+
 def create_profile_embed(
     target: discord.abc.User,
     level_val: int,
@@ -517,10 +590,7 @@ def create_profile_embed(
     progress: int,
     to_next: int,
 ) -> discord.Embed:
-    color = discord.Color.blurple()
-    if isinstance(target, discord.Member) and target.color.value:
-        color = target.color
-
+    color = resolve_user_color(target)
     rank_label = f"#{rank}" if rank > 0 else "Unranked"
     embed = discord.Embed(
         title=f"{target.display_name}'s Level Profile",
@@ -783,30 +853,25 @@ class LevelSystem(commands.Cog):
                             int(settings["curve_b"]),
                             current_level,
                         )
-                        progress = new_total - prev_req
-                        embed = discord.Embed(
-                            title="Level Up",
-                            description=(
-                                f"{message.author.mention} reached **Level {current_level}**!\n"
-                                f"Progress to next level: `{progress}/{need_to_next}` XP"
-                            ),
-                            color=discord.Color.gold(),
-                            timestamp=message.created_at,
-                        )
+                        progress = max(0, new_total - prev_req)
+                        reward_lines: List[str] = []
                         if awarded:
-                            role_lines = []
                             for lvl, rid in awarded:
                                 role = message.guild.get_role(rid)
                                 if role:
-                                    role_lines.append(
+                                    reward_lines.append(
                                         f"Level {lvl} reward: {role.mention}"
                                     )
-                            if role_lines:
-                                embed.add_field(
-                                    name="Rewards",
-                                    value="\n".join(role_lines),
-                                    inline=False,
-                                )
+
+                        embed = create_level_up_embed(
+                            message.author,
+                            current_level,
+                            new_total,
+                            progress,
+                            need_to_next,
+                            reward_lines or None,
+                            timestamp=message.created_at,
+                        )
                         await announce_channel.send(embed=embed)
                     except discord.Forbidden:
                         audit_log(
@@ -840,7 +905,7 @@ class LevelSystem(commands.Cog):
         try:
             if not interaction.guild:
                 return await interaction.response.send_message(
-                    embed=discord.Embed(
+                    embed=create_standard_embed(
                         description="This can only be used in a server."
                     ),
                     ephemeral=True,
@@ -886,12 +951,16 @@ class LevelSystem(commands.Cog):
             logging.error(f"/level profile failed: {e}")
             try:
                 await interaction.response.send_message(
-                    embed=discord.Embed(description="Failed to fetch profile."),
+                    embed=create_standard_embed(
+                        description="Failed to fetch profile."
+                    ),
                     ephemeral=True,
                 )
             except discord.InteractionResponded:
                 await interaction.followup.send(
-                    embed=discord.Embed(description="Failed to fetch profile."),
+                    embed=create_standard_embed(
+                        description="Failed to fetch profile."
+                    ),
                     ephemeral=True,
                 )
 
@@ -900,7 +969,7 @@ class LevelSystem(commands.Cog):
         try:
             if not interaction.guild:
                 return await interaction.response.send_message(
-                    embed=discord.Embed(
+                    embed=create_standard_embed(
                         description="This can only be used in a server."
                     ),
                     ephemeral=True,
@@ -927,12 +996,16 @@ class LevelSystem(commands.Cog):
             logging.error(f"/level leaderboard failed: {e}")
             try:
                 await interaction.response.send_message(
-                    embed=discord.Embed(description="Failed to fetch leaderboard."),
+                    embed=create_standard_embed(
+                        description="Failed to fetch leaderboard."
+                    ),
                     ephemeral=True,
                 )
             except discord.InteractionResponded:
                 await interaction.followup.send(
-                    embed=discord.Embed(description="Failed to fetch leaderboard."),
+                    embed=create_standard_embed(
+                        description="Failed to fetch leaderboard."
+                    ),
                     ephemeral=True,
                 )
 
@@ -1703,7 +1776,9 @@ async def view_level_profile(interaction: discord.Interaction, member: discord.M
     try:
         if not interaction.guild:
             return await interaction.response.send_message(
-                embed=discord.Embed(description="This can only be used in a server."),
+                embed=create_standard_embed(
+                    description="This can only be used in a server."
+                ),
                 ephemeral=True,
             )
         record = await get_user_record(interaction.guild.id, member.id)
@@ -1741,12 +1816,16 @@ async def view_level_profile(interaction: discord.Interaction, member: discord.M
         logging.error(f"context profile failed: {e}")
         try:
             await interaction.response.send_message(
-                embed=discord.Embed(description="Failed to fetch profile."),
+                embed=create_standard_embed(
+                    description="Failed to fetch profile."
+                ),
                 ephemeral=True,
             )
         except discord.InteractionResponded:
             await interaction.followup.send(
-                embed=discord.Embed(description="Failed to fetch profile."),
+                embed=create_standard_embed(
+                    description="Failed to fetch profile."
+                ),
                 ephemeral=True,
             )
 
