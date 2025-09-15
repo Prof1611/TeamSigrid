@@ -1358,6 +1358,74 @@ class LevelSystem(commands.Cog):
             else:
                 await interaction.followup.send(f"```text\n{part}\n```", ephemeral=True)
 
+    # ----- recalculate levels after changing curve -----
+    @config.command(
+        name="recalc",
+        description="Recalculate stored levels for all users based on the current curve.",
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def cfg_recalc(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        s = await get_settings(interaction.guild.id)
+        curve = s["curve_type"]
+        base_xp = int(s["base_xp"])
+        a = int(s["curve_a"])
+        b = int(s["curve_b"])
+
+        gid = interaction.guild.id
+        changed = 0
+        awarded_roles_total = 0
+
+        # Pass 1: recalc for members we can address as discord.Member, which will also apply role rewards.
+        async with _db_lock:
+            rows = cursor.execute(
+                "SELECT user_id, xp, level FROM user_xp WHERE guild_id = ?",
+                (gid,),
+            ).fetchall()
+
+        member_ids = {m.id for m in interaction.guild.members}
+        member_rows = [r for r in rows if int(r["user_id"]) in member_ids]
+        other_rows = [r for r in rows if int(r["user_id"]) not in member_ids]
+
+        # Members present in the guild: use the existing pipeline to update level and award roles.
+        for r in member_rows:
+            uid = int(r["user_id"])
+            member = interaction.guild.get_member(uid)
+            if member is None:
+                continue
+            # Add 0 XP to force recompute based on current curve and preserve XP
+            new_total, new_level, awarded = await add_xp_and_check_level_up(
+                interaction.guild, member, 0
+            )
+            if new_level != int(r["level"]):
+                changed += 1
+            awarded_roles_total += len(awarded)
+
+        # Non-members or uncached users: recompute level numerically and write it back (no role awards).
+        async with _db_lock:
+            for r in other_rows:
+                uid = int(r["user_id"])
+                total = int(r["xp"])
+                old_level = int(r["level"])
+                new_level = level_from_total_xp(curve, base_xp, a, b, total)
+                if new_level != old_level:
+                    cursor.execute(
+                        "UPDATE user_xp SET level = ? WHERE guild_id = ? AND user_id = ?",
+                        (new_level, gid, uid),
+                    )
+                    changed += 1
+            conn.commit()
+
+        await interaction.followup.send(
+            embed=discord.Embed(
+                description=(
+                    f"Recalculated levels using curve **{curve}** (base_xp={base_xp}, a={a}, b={b}).\n"
+                    f"Updated members: **{changed}**. Role rewards granted: **{awarded_roles_total}**."
+                )
+            ),
+            ephemeral=True,
+        )
 
 # ======================================================================================
 # Context menu (must be defined at module level, not inside a class)
