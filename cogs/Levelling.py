@@ -550,7 +550,7 @@ def create_profile_embed(
         progress_text = f"{progress_bar}\n`{progress:,} XP` gained at this level"
     embed.add_field(name="Progress", value=progress_text, inline=False)
 
-    embed.set_footer(text=f"User ID: {target.id}")
+    embed.set_footer(text=f"Use `/level profile` to view your profile.")
     return embed
 
 
