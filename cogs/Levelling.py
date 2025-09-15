@@ -281,10 +281,10 @@ async def add_xp_and_check_level_up(
     guild: discord.Guild,
     member: discord.Member,
     gained_xp: int,
-) -> Tuple[int, int, List[Tuple[int, int]]]:
+) -> Tuple[int, int, bool, List[Tuple[int, int]]]:
     """
     Increase XP for a user and check for level-ups.
-    Returns tuple of (new_total_xp, new_level, awarded_roles_list)
+    Returns tuple of (new_total_xp, new_level, leveled_up, awarded_roles_list)
     awarded_roles_list: list of (level, role_id) granted during this update.
     """
     settings = await get_settings(guild.id)
@@ -311,6 +311,8 @@ async def add_xp_and_check_level_up(
         new_total = max(0, current_xp + int(gained_xp))
         new_level = level_from_total_xp(curve, base_xp, a, b, new_total)
 
+        leveled_up = new_level > current_level
+
         cursor.execute(
             "UPDATE user_xp SET xp = ?, level = ? WHERE guild_id = ? AND user_id = ?",
             (new_total, new_level, guild.id, member.id),
@@ -318,7 +320,7 @@ async def add_xp_and_check_level_up(
         conn.commit()
 
     awarded: List[Tuple[int, int]] = []
-    if new_level > current_level:
+    if leveled_up:
         # Award any role rewards at levels current_level+1..new_level
         async with _db_lock:
             rows = cursor.execute(
@@ -345,7 +347,7 @@ async def add_xp_and_check_level_up(
                     f"HTTP error assigning role {role_id} in guild {guild.id}: {e}"
                 )
 
-    return new_total, new_level, awarded
+    return new_total, new_level, leveled_up, awarded
 
 
 async def set_last_message_ts(guild_id: int, user_id: int, ts: int):
@@ -749,11 +751,11 @@ class LevelSystem(commands.Cog):
                 return
 
             # Apply XP and handle level up
-            new_total, new_level, awarded = await add_xp_and_check_level_up(
+            new_total, new_level, leveled_up, awarded = await add_xp_and_check_level_up(
                 message.guild, message.author, gain
             )
 
-            if awarded or new_level > 0:
+            if leveled_up:
                 # Announce if enabled
                 if int(settings["announce_level_up"]) == 1:
                     channel_id = settings["announce_channel_id"]
@@ -1443,10 +1445,12 @@ class LevelSystem(commands.Cog):
         member: discord.Member,
         amount: app_commands.Range[int, -1000000, 1000000],
     ):
-        new_total, new_level, awarded = await add_xp_and_check_level_up(
+        new_total, new_level, leveled_up, awarded = await add_xp_and_check_level_up(
             interaction.guild, member, int(amount)
         )
         msg = f"Gave {amount} XP to {member.mention}. Total XP now {new_total}, level {new_level}."
+        if leveled_up:
+            msg += f"\n{member.mention} advanced to level {new_level}!"
         if awarded:
             names = []
             for lvl, rid in awarded:
@@ -1656,7 +1660,7 @@ class LevelSystem(commands.Cog):
             if member is None:
                 continue
             # Add 0 XP to force recompute based on current curve and preserve XP
-            new_total, new_level, awarded = await add_xp_and_check_level_up(
+            new_total, new_level, _leveled_up, awarded = await add_xp_and_check_level_up(
                 interaction.guild, member, 0
             )
             if new_level != int(r["level"]):
