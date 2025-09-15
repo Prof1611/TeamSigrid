@@ -5,7 +5,7 @@ import sqlite3
 import asyncio
 import discord
 import logging
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Optional, Tuple, Dict, Any, List, Literal
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
@@ -1111,49 +1111,64 @@ class LevelSystem(commands.Cog):
             )
 
     # ----- ignored channels -----
-    @config.command(name="ignoreadd", description="Add a channel to the ignore list.")
-    @app_commands.describe(channel="Channel that will not award XP")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_ignoreadd(
-        self, interaction: discord.Interaction, channel: discord.abc.GuildChannel
-    ):
-        await add_ignored_channel(interaction.guild.id, channel.id)
-        await interaction.response.send_message(
-            embed=discord.Embed(
-                description=f"Added {channel.mention} to ignored channels."
-            ),
-            ephemeral=True,
-        )
-
     @config.command(
-        name="ignoreremove", description="Remove a channel from the ignore list."
+        name="ignore",
+        description="Manage channels that will not award XP.",
     )
-    @app_commands.describe(channel="Channel to remove from ignore list")
+    @app_commands.describe(
+        action="Choose whether to add, remove, or list ignored channels.",
+        channel="Channel to add or remove (required for add/remove).",
+    )
     @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_ignoreremove(
-        self, interaction: discord.Interaction, channel: discord.abc.GuildChannel
+    async def cfg_ignore(
+        self,
+        interaction: discord.Interaction,
+        action: Literal["add", "remove", "list"],
+        channel: Optional[discord.abc.GuildChannel] = None,
     ):
-        await remove_ignored_channel(interaction.guild.id, channel.id)
-        await interaction.response.send_message(
-            embed=discord.Embed(
-                description=f"Removed {channel.mention} from ignored channels."
-            ),
-            ephemeral=True,
-        )
+        if action in {"add", "remove"}:
+            if channel is None:
+                return await interaction.response.send_message(
+                    embed=discord.Embed(
+                        description=(
+                            "You must specify a channel when using the add or remove actions."
+                        )
+                    ),
+                    ephemeral=True,
+                )
+            if action == "add":
+                await add_ignored_channel(interaction.guild.id, channel.id)
+                await interaction.response.send_message(
+                    embed=discord.Embed(
+                        description=f"Added {channel.mention} to ignored channels."
+                    ),
+                    ephemeral=True,
+                )
+            else:
+                await remove_ignored_channel(interaction.guild.id, channel.id)
+                await interaction.response.send_message(
+                    embed=discord.Embed(
+                        description=(
+                            f"Removed {channel.mention} from ignored channels."
+                        )
+                    ),
+                    ephemeral=True,
+                )
+            return
 
-    @config.command(name="ignorelist", description="List ignored channels.")
-    @app_commands.checks.has_permissions(manage_guild=True)
-    async def cfg_ignorelist(self, interaction: discord.Interaction):
         ch_ids = await list_ignored_channels(interaction.guild.id)
         if not ch_ids:
-            return await interaction.response.send_message(
+            await interaction.response.send_message(
                 embed=discord.Embed(description="No ignored channels."),
                 ephemeral=True,
             )
+            return
+
         mentions = []
         for cid in ch_ids:
             ch = interaction.guild.get_channel(cid)
             mentions.append(ch.mention if ch else f"`{cid}`")
+
         await interaction.response.send_message(
             embed=discord.Embed(
                 description="Ignored channels:\n" + ", ".join(mentions)
