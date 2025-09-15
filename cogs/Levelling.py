@@ -495,32 +495,158 @@ def bool_emoji(value: bool) -> str:
     return "✅" if value else "❌"
 
 
+def format_progress_bar(progress: int, goal: int, length: int = 18) -> str:
+    goal = max(goal, 1)
+    progress = max(0, progress)
+    ratio = min(1.0, progress / goal)
+    filled = int(round(ratio * length))
+    if progress > 0 and filled == 0:
+        filled = 1
+    filled = max(0, min(length, filled))
+    bar = "█" * filled + "░" * (length - filled)
+    return bar
+
+
+def create_profile_embed(
+    target: discord.abc.User,
+    level_val: int,
+    rank: int,
+    total_xp: int,
+    progress: int,
+    to_next: int,
+) -> discord.Embed:
+    color = discord.Color.blurple()
+    if isinstance(target, discord.Member) and target.color.value:
+        color = target.color
+
+    rank_label = f"#{rank}" if rank > 0 else "Unranked"
+    embed = discord.Embed(
+        title=f"{target.display_name}'s Level Profile",
+        color=color,
+        timestamp=datetime.utcnow(),
+    )
+    embed.description = (
+        f"{target.mention} is currently **Level {level_val}**\n"
+        f"Server Rank: **{rank_label}**"
+    )
+    embed.set_thumbnail(url=target.display_avatar.url)
+
+    embed.add_field(name="Total XP", value=f"{total_xp:,}", inline=True)
+
+    if to_next > 0:
+        remaining = max(0, to_next - progress)
+        embed.add_field(name="Next Level In", value=f"{remaining:,} XP", inline=True)
+    else:
+        embed.add_field(name="Next Level In", value="Max level reached", inline=True)
+
+    progress_goal = to_next if to_next > 0 else max(progress, 1)
+    progress_bar = format_progress_bar(progress, progress_goal)
+    if to_next > 0:
+        percent = min(100.0, max(0.0, (progress / to_next) * 100))
+        progress_text = f"{progress_bar}\n`{progress:,}/{to_next:,} XP` ({percent:.1f}%)"
+    else:
+        progress_text = f"{progress_bar}\n`{progress:,} XP` gained at this level"
+    embed.add_field(name="Progress", value=progress_text, inline=False)
+
+    embed.set_footer(text=f"User ID: {target.id}")
+    return embed
+
+
+def build_leaderboard_embed(
+    guild: discord.Guild,
+    rows: List[sqlite3.Row],
+    start_index: int,
+    page: int,
+    per_page: int,
+    viewer_id: Optional[int] = None,
+) -> discord.Embed:
+    color = discord.Color.blurple()
+    me = getattr(guild, "me", None)
+    if isinstance(me, discord.Member) and me.color.value:
+        color = me.color
+
+    embed = discord.Embed(
+        title=f"Leaderboard • Page {page + 1}",
+        color=color,
+        timestamp=datetime.utcnow(),
+    )
+
+    if guild.icon:
+        embed.set_author(name=guild.name, icon_url=guild.icon.url)
+        embed.set_thumbnail(url=guild.icon.url)
+    else:
+        embed.set_author(name=guild.name)
+
+    if not rows:
+        embed.description = "No data to display yet. Start chatting to earn XP!"
+    else:
+        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+        lines = []
+        for idx, r in enumerate(rows):
+            rank = start_index + idx + 1
+            medal = medals.get(rank)
+            rank_label = medal or f"#{rank}"
+            member = guild.get_member(int(r["user_id"]))
+            mention = member.mention if member else f"<@{int(r['user_id'])}>"
+            level_val = int(r["level"])
+            xp = int(r["xp"])
+            entry = f"{rank_label} {mention} • Level **{level_val}** • {xp:,} XP"
+            if viewer_id and viewer_id == int(r["user_id"]):
+                entry = f"__{entry}__"
+            lines.append(entry)
+
+        embed.description = "\n".join(lines)
+        embed.add_field(
+            name="Showing",
+            value=f"Ranks {start_index + 1} – {start_index + len(rows)}",
+            inline=True,
+        )
+        embed.add_field(
+            name="Entries",
+            value=f"{len(rows)}/{per_page}",
+            inline=True,
+        )
+
+    if viewer_id:
+        viewer = guild.get_member(viewer_id)
+        footer_text = (
+            f"Requested by {viewer.display_name}"
+            if viewer
+            else f"Requested by ID {viewer_id}"
+        )
+        embed.set_footer(text=f"{footer_text} • Use the buttons below to navigate.")
+    else:
+        embed.set_footer(text="Use the buttons below to navigate.")
+
+    return embed
+
+
 class LeaderboardView(discord.ui.View):
-    def __init__(self, cog: "LevelSystem", guild: discord.Guild, per_page: int = 10):
+    def __init__(
+        self,
+        cog: "LevelSystem",
+        guild: discord.Guild,
+        per_page: int = 10,
+        viewer_id: Optional[int] = None,
+    ):
         super().__init__(timeout=60)
         self.cog = cog
         self.guild = guild
         self.page = 0
         self.per_page = per_page
+        self.viewer_id = viewer_id
 
     async def _render(self, interaction: discord.Interaction):
         start = self.page * self.per_page
         rows = await top_users(self.guild.id, self.per_page, start)
-        embed = discord.Embed(
-            title=f"Leaderboard - Page {self.page + 1}",
-            color=discord.Color.blurple(),
+        embed = build_leaderboard_embed(
+            self.guild,
+            rows,
+            start,
+            self.page,
+            self.per_page,
+            viewer_id=self.viewer_id,
         )
-        if not rows:
-            embed.description = "No data to display."
-        else:
-            lines = []
-            for i, r in enumerate(rows, start=1 + start):
-                member = self.guild.get_member(int(r["user_id"]))
-                name = member.mention if member else f"<@{int(r['user_id'])}>"
-                lines.append(
-                    f"**{i}.** {name} - XP: `{r['xp']}` - Level: `{r['level']}`"
-                )
-            embed.description = "\n".join(lines)
 
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -741,17 +867,14 @@ class LevelSystem(commands.Cog):
             progress = total - prev_req
             progress = max(0, progress)
 
-            embed = discord.Embed(
-                title=f"Profile for {target.display_name}",
-                color=discord.Color.blue(),
+            embed = create_profile_embed(
+                target,
+                level_val,
+                rank,
+                total,
+                progress,
+                to_next,
             )
-            embed.add_field(name="Level", value=str(level_val))
-            embed.add_field(name="Rank", value=f"#{rank}")
-            embed.add_field(name="Total XP", value=str(total))
-            embed.add_field(
-                name="Progress", value=f"{progress}/{to_next} XP", inline=False
-            )
-            embed.set_thumbnail(url=target.display_avatar.url)
             await interaction.response.send_message(embed=embed, ephemeral=False)
             audit_log(
                 f"{interaction.user} checked profile for {target} in {interaction.guild.name}"
@@ -779,24 +902,23 @@ class LevelSystem(commands.Cog):
                     ),
                     ephemeral=True,
                 )
-            view = LeaderboardView(self, interaction.guild, per_page=10)
-            # Initial render
-            rows = await top_users(interaction.guild.id, 10, 0)
-            embed = discord.Embed(
-                title="Leaderboard - Page 1",
-                color=discord.Color.blurple(),
+            per_page = 10
+            view = LeaderboardView(
+                self,
+                interaction.guild,
+                per_page=per_page,
+                viewer_id=interaction.user.id,
             )
-            if not rows:
-                embed.description = "No data to display."
-            else:
-                lines = []
-                for i, r in enumerate(rows, start=1):
-                    member = interaction.guild.get_member(int(r["user_id"]))
-                    name = member.mention if member else f"<@{int(r['user_id'])}>"
-                    lines.append(
-                        f"**{i}.** {name} - XP: `{r['xp']}` - Level: `{r['level']}`"
-                    )
-                embed.description = "\n".join(lines)
+            # Initial render
+            rows = await top_users(interaction.guild.id, per_page, 0)
+            embed = build_leaderboard_embed(
+                interaction.guild,
+                rows,
+                0,
+                0,
+                per_page,
+                viewer_id=interaction.user.id,
+            )
             await interaction.response.send_message(embed=embed, view=view)
         except Exception as e:
             logging.error(f"/level leaderboard failed: {e}")
@@ -1601,15 +1723,14 @@ async def view_level_profile(interaction: discord.Interaction, member: discord.M
         )
         progress = max(0, total - prev_req)
 
-        embed = discord.Embed(
-            title=f"Profile for {member.display_name}",
-            color=discord.Color.blue(),
+        embed = create_profile_embed(
+            member,
+            level_val,
+            rank,
+            total,
+            progress,
+            to_next,
         )
-        embed.add_field(name="Level", value=str(level_val))
-        embed.add_field(name="Rank", value=f"#{rank}")
-        embed.add_field(name="Total XP", value=str(total))
-        embed.add_field(name="Progress", value=f"{progress}/{to_next} XP", inline=False)
-        embed.set_thumbnail(url=member.display_avatar.url)
         await interaction.response.send_message(embed=embed, ephemeral=True)
     except Exception as e:
         logging.error(f"context profile failed: {e}")
