@@ -172,9 +172,15 @@ class StickyFormatSelect(discord.ui.Select):
                 StickyModal(interaction.client, self.sticky_cog, "normal", None)
             )
         else:  # embed
-            view = StickyColourPickView(interaction.client, self.sticky_cog, interaction.channel, "embed")
+            view = StickyColourPickView(
+                interaction.client, self.sticky_cog, interaction.channel, "embed"
+            )
             await interaction.response.send_message(
-                "Choose a colour for your sticky embed:", view=view, ephemeral=True
+                embed=discord.Embed(
+                    description="Choose a colour for your sticky embed:"
+                ),
+                view=view,
+                ephemeral=True,
             )
         audit_log(f"{interaction.user} selected sticky format '{choice}'.")
 
@@ -473,8 +479,14 @@ class Sticky(commands.Cog):
     @app_commands.command(name="setsticky", description="Set a sticky message in the channel.")
     async def set_sticky(self, interaction: discord.Interaction):
         view = StickyFormatView(self)
-        await interaction.response.send_message("Choose the sticky message format:", view=view, ephemeral=True)
-        audit_log(f"{interaction.user} invoked /setsticky in channel #{interaction.channel.name}.")
+        await interaction.response.send_message(
+            embed=discord.Embed(description="Choose the sticky message format:"),
+            view=view,
+            ephemeral=True,
+        )
+        audit_log(
+            f"{interaction.user} invoked /setsticky in channel #{interaction.channel.name}."
+        )
 
     @app_commands.command(name="removesticky", description="Remove the sticky message in the channel.")
     async def remove_sticky(self, interaction: discord.Interaction):

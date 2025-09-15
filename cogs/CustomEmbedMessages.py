@@ -330,9 +330,11 @@ class CustomEmbed(commands.Cog):
                 return
 
             view = ColourPickView(channel)
-            # *** Plain-text prompt here ***
+            # *** Send prompt as an embed ***
             await interaction.response.send_message(
-                "Choose a colour for your embed:", view=view, ephemeral=True
+                embed=discord.Embed(description="Choose a colour for your embed:"),
+                view=view,
+                ephemeral=True,
             )
             audit_log(f"{interaction.user} invoked /sendembed in #{channel.name}.")
         except Exception as e:
