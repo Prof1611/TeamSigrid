@@ -525,7 +525,7 @@ def create_profile_embed(
     embed = discord.Embed(
         title=f"{target.display_name}'s Level Profile",
         color=color,
-        timestamp=datetime.utcnow(),
+        timestamp=discord.utils.utcnow(),
     )
     embed.description = (
         f"{target.mention} is currently **Level {level_val}**\n"
@@ -570,7 +570,7 @@ def build_leaderboard_embed(
     embed = discord.Embed(
         title=f"Leaderboard • Page {page + 1}",
         color=color,
-        timestamp=datetime.utcnow(),
+        timestamp=discord.utils.utcnow(),
     )
 
     if guild.icon:
@@ -718,7 +718,7 @@ class LevelSystem(commands.Cog):
                 return
 
             # Cooldown
-            now_ts = int(datetime.utcnow().timestamp())
+            now_ts = int(message.created_at.timestamp())
             last_ts = await get_last_message_ts(message.guild.id, message.author.id)
             cooldown = int(settings["cooldown_seconds"])
             if now_ts - last_ts < cooldown:
@@ -791,6 +791,7 @@ class LevelSystem(commands.Cog):
                                 f"Progress to next level: `{progress}/{need_to_next}` XP"
                             ),
                             color=discord.Color.gold(),
+                            timestamp=message.created_at,
                         )
                         if awarded:
                             role_lines = []
