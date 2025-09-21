@@ -50,7 +50,7 @@ class Scrape(commands.Cog):
 
     @app_commands.command(
         name="scrape",
-        description="Checks the band's website for new shows and updates #live-shows and server events.",
+        description="Checks the Sigrid website for new shows and updates threads and server events.",
     )
     async def scrape(self, interaction: discord.Interaction):
         # This command must run in a guild, not in DMs.
